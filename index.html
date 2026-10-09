@@ -3,164 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Канал · путь к 100 000 AED</title>
-<link rel="stylesheet" href="app.css?v=1">
+<title>Путь к 100 000 AED</title>
+<link rel="stylesheet" href="app.css?v=3">
 </head>
 <body>
 
-<header class="top">
-  <div class="top-l">
-    <h1>Канал</h1>
-    <span class="dl" id="deadline"></span>
-  </div>
-  <nav class="tabs">
-    <button class="tab is-on" data-tab="goal">Цель</button>
-    <button class="tab" data-tab="channel">Канал</button>
-    <button class="tab" data-tab="journal">Журнал</button>
-    <button class="tab" data-tab="plan">План</button>
-  </nav>
-  <div class="top-r">
-    <span class="saved" id="saved"></span>
-  </div>
-</header>
+<div class="cover"></div>
 
-<main>
+<div class="wrap">
 
-<!-- ЦЕЛЬ -->
-<section class="view is-on" id="v-goal">
+  <div class="page-icon">🎯</div>
+  <h1>Путь к 100 000 AED</h1>
+  <div class="props">
+    <span class="prop" id="pDeadline">Дедлайн · 31 декабря 2026</span>
+    <span class="prop" id="pDays">—</span>
+    <span class="prop on">Идёт</span>
+  </div>
+
+  <h2>Паспорт <span class="saved" id="saved"></span></h2>
+  <div class="passport" id="passport">
+    <div class="pf"><label>Кто я</label><input data-p="who" placeholder="одной строкой"></div>
+    <div class="pf"><label>Чем торгую</label><input data-p="what" placeholder="услуга, которую продаю"></div>
+    <div class="pf"><label>Прайс</label><input data-p="price" placeholder="например: 4 000 AED сайт + 400 AED/мес"></div>
+    <div class="pf"><label>Живые работы</label><input data-p="works" placeholder="домены через запятую"></div>
+    <div class="pf"><label>Telegram</label><input data-p="telegram" placeholder="@канал"></div>
+    <div class="pf"><label>Threads</label><input data-p="threads" placeholder="@аккаунт"></div>
+    <div class="pf"><label>Стартовая точка</label><input data-p="start" placeholder="где я был на старте"></div>
+  </div>
+
+  <h2>Прогресс</h2>
   <div class="hero">
-    <div class="hero-num">
-      <div class="big" id="gPct">—</div>
-      <div class="big-sub">выполнено к цели</div>
+    <div class="hero-top">
+      <div><span class="hero-v" id="gPaid">0</span><span class="hero-of"> из 100 000 AED</span></div>
+      <span class="hero-p" id="gPct">0%</span>
     </div>
-    <div class="hero-bar">
-      <div class="bar"><i id="gBar"></i></div>
-      <div class="bar-ends">
-        <span id="gEarned">—</span>
-        <span id="gTarget">—</span>
-      </div>
-    </div>
+    <div class="track"><i id="gBar"></i></div>
+    <div class="hero-note" id="gNote"></div>
+  </div>
+  <div class="metrics">
+    <div class="m"><div class="m-k">Сделок закрыто</div><div class="m-v" id="mDeals">0</div></div>
+    <div class="m"><div class="m-k">Постов вышло</div><div class="m-v" id="mPosts">0</div></div>
+    <div class="m"><div class="m-k">Подписчиков</div><div class="m-v" id="mSubs">—</div></div>
+    <div class="m"><div class="m-k">Дней в журнале</div><div class="m-v" id="mLog">0</div></div>
   </div>
 
-  <div class="grid4">
-    <div class="card stat"><div class="k">Осталось собрать</div><div class="v" id="gLeft">—</div><div class="s" id="gLeftSub"></div></div>
-    <div class="card stat"><div class="k">Дней до 31.12</div><div class="v" id="gDays">—</div><div class="s" id="gDaysSub"></div></div>
-    <div class="card stat"><div class="k">Нужно в день</div><div class="v" id="gPace">—</div><div class="s">чтобы закрыть в срок</div></div>
-    <div class="card stat"><div class="k">Текущий темп</div><div class="v" id="gReal">—</div><div class="s" id="gRealSub"></div></div>
-  </div>
+  <h2>Деньги по месяцам</h2>
+  <div id="chMoneyWrap"></div>
 
-  <div class="card">
-    <div class="card-h">
-      <h2>Поступления</h2>
-      <form class="row" id="fIncome">
-        <input type="date" name="date" required>
-        <input type="number" name="amount" placeholder="AED" step="1" required>
-        <input type="text" name="source" placeholder="за что, от кого" required>
-        <select name="status">
-          <option value="paid">получено</option>
-          <option value="signed">согласовано</option>
-        </select>
-        <button type="submit">Внести</button>
-      </form>
+  <h2>Сделки</h2>
+  <form class="row" id="fDeal">
+    <input type="text" name="client" class="grow" placeholder="клиент" required>
+    <input type="number" name="amount" placeholder="AED" step="1" min="0">
+    <select name="status">
+      <option value="lead">Лид</option>
+      <option value="work">В работе</option>
+      <option value="invoiced">Счёт выставлен</option>
+      <option value="paid" selected>Оплачено</option>
+    </select>
+    <input type="date" name="date">
+    <input type="text" name="service" class="grow" placeholder="услуга">
+    <input type="url" name="url" class="grow" placeholder="https://сайт">
+    <button type="submit">Внести</button>
+  </form>
+  <table>
+    <thead><tr><th>Клиент</th><th>Услуга</th><th>Статус</th><th>Дата</th><th>Сумма</th></tr></thead>
+    <tbody id="dealRows"></tbody>
+  </table>
+
+  <h2>Подписчики</h2>
+  <form class="row" id="fSub">
+    <input type="date" name="date" required>
+    <select name="platform"><option value="threads">Threads</option><option value="telegram">Telegram</option></select>
+    <input type="number" name="count" placeholder="подписчиков" step="1" min="0" required>
+    <button type="submit">Снять</button>
+  </form>
+  <div id="chSubsWrap"></div>
+  <table style="margin-top:14px">
+    <thead><tr><th>Дата</th><th>Площадка</th><th>Подписчиков</th></tr></thead>
+    <tbody id="subRows"></tbody>
+  </table>
+
+  <h2>Посты</h2>
+  <form class="row" id="fPost">
+    <input type="text" name="title" class="grow" placeholder="заголовок" required>
+    <select name="platform"><option value="threads">Threads</option><option value="telegram">Telegram</option></select>
+    <select name="rubric">
+      <option value="report">Отчёт</option>
+      <option value="teardown">Разбор</option>
+      <option value="dubai">Дубай</option>
+      <option value="personal">Личное</option>
+    </select>
+    <input type="date" name="date" required>
+    <input type="number" name="views" placeholder="просм." step="1" min="0">
+    <input type="number" name="replies" placeholder="откл." step="1" min="0">
+    <input type="url" name="url" class="grow" placeholder="https://ссылка">
+    <button type="submit">Внести</button>
+  </form>
+  <div class="cards" id="postCards"></div>
+  <div id="chRubricWrap" style="margin-top:16px"></div>
+
+  <h2>Журнал</h2>
+  <form class="stack" id="fLog">
+    <div class="row" style="margin:0">
+      <input type="date" name="date" required>
+      <input type="number" name="minutes" placeholder="минут в работе" step="5" min="0">
     </div>
-    <div id="incomeList" class="list"></div>
-  </div>
-</section>
+    <textarea name="done" rows="3" placeholder="Сделано — по одному пункту на строку" required></textarea>
+    <textarea name="fail" rows="2" placeholder="Провал дня — честно"></textarea>
+    <div><button type="submit">Записать день</button></div>
+  </form>
+  <div id="logList"></div>
 
-<!-- КАНАЛ -->
-<section class="view" id="v-channel">
-  <div class="grid2" id="chCards"></div>
+</div>
 
-  <div class="card">
-    <div class="card-h">
-      <h2>Снимок подписчиков</h2>
-      <form class="row" id="fSnap">
-        <input type="date" name="date" required>
-        <select name="platform">
-          <option value="telegram">Telegram</option>
-          <option value="threads">Threads</option>
-        </select>
-        <input type="number" name="subs" placeholder="подписчиков" step="1" min="0" required>
-        <button type="submit">Записать</button>
-      </form>
-    </div>
-    <p class="hint">Снимать раз в неделю, в один и тот же день. Два снимка за неделю уже дают прирост, который видно глазом.</p>
-  </div>
-
-  <div class="card">
-    <div class="card-h">
-      <h2>Вышедшие посты</h2>
-      <form class="row" id="fPost">
-        <input type="date" name="date" required>
-        <select name="platform">
-          <option value="telegram">Telegram</option>
-          <option value="threads">Threads</option>
-        </select>
-        <select name="rubric" id="fPostRubric"></select>
-        <input type="text" name="title" placeholder="заголовок" required>
-        <input type="number" name="views" placeholder="просм." step="1" min="0">
-        <button type="submit">Внести</button>
-      </form>
-    </div>
-    <div id="postList" class="list"></div>
-  </div>
-</section>
-
-<!-- ЖУРНАЛ -->
-<section class="view" id="v-journal">
-  <div class="card">
-    <div class="card-h">
-      <h2>Что сделано</h2>
-    </div>
-    <form class="stack" id="fLog">
-      <div class="row">
-        <input type="date" name="date" required>
-        <input type="number" name="minutes" placeholder="минут в работе" step="5" min="0">
-      </div>
-      <textarea name="done" rows="4" placeholder="Сделано — по одному пункту на строку" required></textarea>
-      <textarea name="fail" rows="2" placeholder="Провал дня — честно. Отчёт без провала читается как реклама"></textarea>
-      <button type="submit">Записать день</button>
-    </form>
-  </div>
-  <div id="logList" class="list big-list"></div>
-</section>
-
-<!-- ПЛАН -->
-<section class="view" id="v-plan">
-  <div class="hero slim">
-    <div class="hero-num">
-      <div class="big" id="pPct">—</div>
-      <div class="big-sub">плана закрыто</div>
-    </div>
-    <div class="hero-bar">
-      <div class="bar"><i id="pBar"></i></div>
-      <div class="bar-ends">
-        <span id="pDone">—</span>
-        <span id="pLeft">—</span>
-      </div>
-    </div>
-  </div>
-  <div id="planList"></div>
-  <div class="card">
-    <div class="card-h">
-      <h2>Добавить задачу</h2>
-      <form class="row" id="fPlan">
-        <input type="text" name="group" placeholder="группа" required list="planGroups">
-        <datalist id="planGroups"></datalist>
-        <input type="text" name="title" placeholder="что сделать" required>
-        <select name="weight">
-          <option value="1">вес 1 — мелкая</option>
-          <option value="2">вес 2 — крупная</option>
-          <option value="3">вес 3 — ключевая</option>
-        </select>
-        <button type="submit">Добавить</button>
-      </form>
-    </div>
-  </div>
-</section>
-
-</main>
-
-<script src="app.js?v=1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

@@ -61,8 +61,8 @@ const server = http.createServer((req, res) => {
         return sendJSON(res, 400, { error: 'не JSON: ' + e.message });
       }
       // Минимальная проверка формы, чтобы кривой клиент не затёр файл пустышкой.
-      if (!parsed || typeof parsed !== 'object' || !parsed.goal || !Array.isArray(parsed.income)) {
-        return sendJSON(res, 400, { error: 'нет goal или income — запись отклонена' });
+      if (!parsed || typeof parsed !== 'object' || !parsed.goal || !Array.isArray(parsed.deals)) {
+        return sendJSON(res, 400, { error: 'нет goal или deals — запись отклонена' });
       }
       try {
         writeData(parsed);

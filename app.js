@@ -1,52 +1,73 @@
-/* Дашборд канала. Источник правды — data.json на диске, сервер пишет его целиком.
+/* Дашборд 100 000 AED. Источник правды — data.json, сервер пишет его целиком.
    Без ES-модулей намеренно: ?v= на <script src> не бустит импорты внутри модуля. */
 (function () {
   'use strict';
 
-  var S = null;              // данные
+  var S = null;
   var saveTimer = null;
+  var charts = {};
   var $ = function (id) { return document.getElementById(id); };
 
-  var AED = function (n) {
-    return Math.round(n).toLocaleString('ru-RU').replace(/ /g, ' ');
-  };
+  var RUB = { report: 'Отчёт', teardown: 'Разбор', dubai: 'Дубай', personal: 'Личное' };
+  var ST = { lead: 'Лид', work: 'В работе', invoiced: 'Счёт выставлен', paid: 'Оплачено' };
+  var ST_CLS = { lead: 't-lead', work: 't-work', invoiced: 't-inv', paid: 't-paid' };
+  var PLAT = { threads: 'Threads', telegram: 'Telegram' };
+  var MON = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+  var C = { accent: '#0F6E56', blue: '#378ADD', amber: '#BA7517', coral: '#D85A30', line: '#E9E8E4', dim: '#9B9A93' };
+
+  var n = function (v) { return Math.round(Number(v) || 0).toLocaleString('ru-RU').replace(/ /g, ' '); };
   var today = function () {
     var d = new Date();
     return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
   };
-  var days = function (a, b) {
-    return Math.round((new Date(b) - new Date(a)) / 864e5);
-  };
   var dmy = function (iso) {
-    var p = String(iso).split('-');
-    return p.length === 3 ? p[2] + '.' + p[1] : iso;
+    var p = String(iso || '').split('-');
+    return p.length === 3 ? Number(p[2]) + ' ' + MON[Number(p[1]) - 1] : '';
   };
+  var uid = function () { return Math.random().toString(36).slice(2, 10); };
   var esc = function (s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   };
 
-  // ─── загрузка и запись ───────────────────────────────────────────────
-  function load() {
-    fetch('/api/data', { cache: 'no-store' })
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(function (d) { S = d; boot(); })
-      .catch(function (e) {
-        flag('не читается data.json — ' + e.message, 'err');
-      });
-  }
-
   function flag(text, kind) {
     var el = $('saved');
     el.textContent = text;
-    el.className = 'saved' + (kind ? ' is-' + kind : '');
+    el.className = 'saved' + (kind ? ' ' + kind : '');
   }
 
-  // Пишем с задержкой: подряд поставленные галочки уходят одним запросом.
+  function load() {
+    fetch('/api/data', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) { S = migrate(d); boot(); })
+      .catch(function (e) { flag('не читается data.json — ' + e.message, 'err'); });
+  }
+
+  // Старый файл мог быть прошлой структуры — достраиваем недостающее, ничего не теряя.
+  function migrate(d) {
+    d.goal = d.goal || { target: 100000, currency: 'AED', deadline: '2026-12-31', start: '2026-10-01' };
+    d.profile = d.profile || {};
+    d.deals = d.deals || [];
+    d.subs = d.subs || [];
+    d.posts = d.posts || [];
+    d.log = d.log || [];
+    if (d.income && d.income.length && !d.deals.length) {
+      d.deals = d.income.map(function (i) {
+        return { id: uid(), client: i.source, amount: i.amount, status: i.status === 'paid' ? 'paid' : 'invoiced', date: i.date, service: '', url: '' };
+      });
+    }
+    delete d.income;
+    delete d.channels;
+    delete d.plan;
+    delete d.rubrics;
+    [d.deals, d.subs, d.posts, d.log].forEach(function (arr) {
+      arr.forEach(function (it) { if (!it.id) it.id = uid(); });
+    });
+    return d;
+  }
+
   function save() {
     render();
     flag('…');
@@ -58,302 +79,304 @@
         body: JSON.stringify(S),
       })
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
-        .then(function () { flag('сохранено в data.json', 'ok'); })
+        .then(function () { flag('сохранено', 'ok'); })
         .catch(function (e) { flag('НЕ сохранено: ' + e.message, 'err'); });
-    }, 400);
+    }, 500);
   }
 
-  // ─── цель ───────────────────────────────────────────────────────────
-  function renderGoal() {
-    var g = S.goal;
-    var paid = 0, signed = 0;
-    S.income.forEach(function (i) {
-      if (i.status === 'paid') paid += Number(i.amount) || 0;
-      else signed += Number(i.amount) || 0;
-    });
+  function drawChart(wrapId, key, emptyText, cfg) {
+    var wrap = $(wrapId);
+    if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+    if (!cfg) {
+      wrap.innerHTML = '<div class="chart-empty">' + esc(emptyText) + '</div>';
+      return;
+    }
+    wrap.innerHTML = '<div class="chart-box"><canvas id="cv-' + key + '" role="img" aria-label="'
+      + esc(cfg.aria) + '">' + esc(cfg.aria) + '</canvas></div>';
+    charts[key] = new Chart($('cv-' + key), cfg.chart);
+  }
 
-    var pct = g.target > 0 ? (paid / g.target) * 100 : 0;
-    $('gPct').textContent = (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%';
+  var AXIS = {
+    grid: { color: C.line, drawTicks: false },
+    border: { display: false },
+    ticks: { color: C.dim, font: { size: 11 } },
+  };
+
+  function renderProgress() {
+    var paid = 0, other = 0, closed = 0;
+    S.deals.forEach(function (d) {
+      var a = Number(d.amount) || 0;
+      if (d.status === 'paid') { paid += a; closed++; } else { other += a; }
+    });
+    var target = S.goal.target || 100000;
+    var pct = (paid / target) * 100;
+
+    $('gPaid').textContent = n(paid);
+    $('gPct').textContent = (pct > 0 && pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%';
     $('gBar').style.width = Math.min(100, pct) + '%';
-    $('gEarned').textContent = AED(paid) + ' ' + g.currency;
-    $('gTarget').textContent = AED(g.target) + ' ' + g.currency;
+    $('gNote').textContent = other > 0
+      ? 'Ещё ' + n(other) + ' AED в работе и не оплачено'
+      : (paid === 0 ? 'Ни одной оплаченной сделки' : '');
 
-    var left = Math.max(0, g.target - paid);
-    $('gLeft').textContent = AED(left);
-    $('gLeftSub').textContent = signed > 0
-      ? 'из них ' + AED(signed) + ' уже согласовано'
-      : g.currency;
+    $('mDeals').textContent = closed;
+    $('mPosts').textContent = S.posts.length;
+    $('mLog').textContent = S.log.length;
 
-    var dLeft = Math.max(0, days(today(), g.deadline));
-    $('gDays').textContent = dLeft;
-    $('gDaysSub').textContent = 'дедлайн ' + dmy(g.deadline) + '.2026';
-    $('gPace').textContent = dLeft > 0 ? AED(left / dLeft) : '—';
-
-    var elapsed = Math.max(1, days(g.start, today()));
-    var real = paid / elapsed;
-    $('gReal').textContent = AED(real);
-    if (paid === 0) {
-      $('gRealSub').textContent = 'ни одного поступления';
-    } else {
-      var forecast = paid + real * dLeft;
-      $('gRealSub').textContent = 'к 31.12 выйдет ' + AED(forecast) + ' при этом темпе';
-    }
-
-    var box = $('incomeList');
-    if (!S.income.length) {
-      box.innerHTML = '<div class="empty">Пусто. Каждое поступление — строкой, чтобы цифра в отчёте была прослеживаемой.</div>';
-      return;
-    }
-    var rows = S.income.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
-    box.innerHTML = rows.map(function (i) {
-      return '<div class="item"><span class="d">' + esc(dmy(i.date)) + '</span>'
-        + '<span class="t">' + esc(i.source)
-        + (i.status === 'signed' ? ' <span class="pill signed">согласовано</span>' : '')
-        + '</span>'
-        + '<span class="a">' + AED(i.amount) + '</span>'
-        + '<button class="del" data-del="income" data-id="' + esc(i.date + '|' + i.amount + '|' + i.source) + '" title="удалить">&times;</button></div>';
-    }).join('');
-  }
-
-  // ─── канал ──────────────────────────────────────────────────────────
-  function sparkline(snaps) {
-    if (snaps.length < 2) return '';
-    var vals = snaps.map(function (s) { return Number(s.subs) || 0; });
-    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
-    var span = max - min || 1;
-    var W = 260, H = 40;
-    var pts = vals.map(function (v, i) {
-      return [
-        (i / (vals.length - 1)) * W,
-        H - ((v - min) / span) * H,
-      ];
+    // Берём последний по дате снимок каждой площадки и складываем.
+    var byPlat = {};
+    S.subs.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (s) {
+      byPlat[s.platform] = Number(s.count) || 0;
     });
-    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
-    return '<svg class="spark" viewBox="-2 -2 ' + (W + 4) + ' ' + (H + 4) + '" preserveAspectRatio="none">'
-      + '<path d="' + d + '"/></svg>';
+    var total = Object.keys(byPlat).reduce(function (acc, k) { return acc + byPlat[k]; }, 0);
+    $('mSubs').textContent = S.subs.length ? n(total) : '—';
+
+    var days = Math.max(0, Math.round((new Date(S.goal.deadline) - new Date(today())) / 864e5));
+    $('pDays').textContent = days + ' дней осталось';
   }
 
-  function renderChannel() {
-    var box = $('chCards');
-    box.innerHTML = Object.keys(S.channels).map(function (key) {
-      var c = S.channels[key];
-      var snaps = (c.snapshots || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-      var last = snaps[snaps.length - 1];
-      var prev = snaps[snaps.length - 2];
-      var growth = '';
-      if (last && prev) {
-        var diff = (Number(last.subs) || 0) - (Number(prev.subs) || 0);
-        growth = '<div class="ch-g' + (diff > 0 ? ' up' : '') + '">'
-          + (diff > 0 ? '+' : '') + diff + ' с ' + dmy(prev.date) + '</div>';
-      } else if (last) {
-        growth = '<div class="ch-g">первый снимок ' + dmy(last.date) + '</div>';
-      } else {
-        growth = '<div class="ch-g">снимков нет</div>';
-      }
-      var posts = S.posts.filter(function (p) { return p.platform === key; }).length;
-      return '<div class="card">'
-        + '<div class="ch-h"><span class="nm">' + esc(c.label) + '</span>'
-        + '<span class="hd">' + (c.handle ? esc(c.handle) : '') + '</span></div>'
-        + '<div class="ch-v">' + (last ? AED(last.subs) : '—') + '</div>'
-        + growth
-        + sparkline(snaps)
-        + '<div class="ch-g" style="margin-top:8px">постов: ' + posts + '</div>'
-        + '</div>';
-    }).join('');
-
-    var pl = $('postList');
-    if (!S.posts.length) {
-      pl.innerHTML = '<div class="empty">Ни одного поста. Первые три — в один день, чтобы зашедший не увидел пустой канал.</div>';
+  function renderMoneyChart() {
+    var paid = S.deals.filter(function (d) { return d.status === 'paid' && d.date; });
+    if (!paid.length) {
+      drawChart('chMoneyWrap', 'money', 'График появится, когда будет первая оплаченная сделка с датой');
       return;
     }
-    var rub = {};
-    (S.rubrics || []).forEach(function (r) { rub[r.key] = r; });
-    var rows = S.posts.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
-    pl.innerHTML = rows.map(function (p, idx) {
-      var r = rub[p.rubric];
-      return '<div class="item"><span class="d">' + esc(dmy(p.date)) + '</span>'
-        + '<span class="t">'
-        + (r ? '<span class="pill" style="background:' + esc(r.color) + '1A;color:' + esc(r.color) + '">' + esc(r.label) + '</span> ' : '')
-        + esc(p.title)
-        + ' <span class="pill">' + esc(S.channels[p.platform] ? S.channels[p.platform].label : p.platform) + '</span>'
-        + '</span>'
-        + '<span class="a">' + (p.views ? AED(p.views) : '—') + '</span>'
-        + '<button class="del" data-del="post" data-i="' + idx + '" title="удалить">&times;</button></div>';
+    var months = {};
+    paid.forEach(function (d) {
+      var k = String(d.date).slice(0, 7);
+      months[k] = (months[k] || 0) + (Number(d.amount) || 0);
+    });
+    var keys = Object.keys(months).sort();
+    var labels = keys.map(function (k) { return MON[Number(k.slice(5, 7)) - 1]; });
+    drawChart('chMoneyWrap', 'money', '', {
+      aria: 'Столбчатый график оплаченных сумм по месяцам',
+      chart: {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ data: keys.map(function (k) { return months[k]; }), backgroundColor: C.accent, borderRadius: 5, maxBarThickness: 54 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return n(c.parsed.y) + ' AED'; } } } },
+          scales: {
+            x: { grid: { display: false }, border: { display: false }, ticks: AXIS.ticks },
+            y: { beginAtZero: true, grid: AXIS.grid, border: AXIS.border, ticks: { color: C.dim, font: { size: 11 }, callback: function (v) { return n(v); } } },
+          },
+        },
+      },
+    });
+  }
+
+  function renderSubsChart() {
+    if (S.subs.length < 2) {
+      drawChart('chSubsWrap', 'subs', 'Нужно минимум два снимка, чтобы нарисовать рост');
+      return;
+    }
+    var dates = [];
+    S.subs.forEach(function (s) { if (dates.indexOf(s.date) < 0) dates.push(s.date); });
+    dates.sort();
+    var sets = [];
+    ['threads', 'telegram'].forEach(function (p, i) {
+      var pts = dates.map(function (d) {
+        var hit = S.subs.filter(function (s) { return s.platform === p && s.date === d; })[0];
+        return hit ? Number(hit.count) || 0 : null;
+      });
+      if (pts.some(function (v) { return v !== null; })) {
+        sets.push({
+          label: PLAT[p], data: pts, spanGaps: true,
+          borderColor: i ? C.blue : C.accent,
+          backgroundColor: i ? C.blue : C.accent,
+          borderDash: i ? [5, 4] : [],
+          pointStyle: i ? 'rect' : 'circle',
+          pointRadius: 3, borderWidth: 2, tension: .25,
+        });
+      }
+    });
+    drawChart('chSubsWrap', 'subs', '', {
+      aria: 'Линейный график роста числа подписчиков по датам снимков',
+      chart: {
+        type: 'line',
+        data: { labels: dates.map(dmy), datasets: sets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 7, boxHeight: 7, padding: 18, color: C.dim, font: { size: 12 } } } },
+          scales: {
+            x: { grid: { display: false }, border: AXIS.border, ticks: AXIS.ticks },
+            y: { beginAtZero: true, grid: AXIS.grid, border: AXIS.border, ticks: AXIS.ticks },
+          },
+        },
+      },
+    });
+  }
+
+  function renderRubricChart() {
+    var withViews = S.posts.filter(function (p) { return Number(p.views) > 0; });
+    if (!withViews.length) {
+      drawChart('chRubricWrap', 'rubric', 'График по рубрикам появится, когда у постов будут просмотры');
+      return;
+    }
+    var keys = Object.keys(RUB);
+    var vals = keys.map(function (k) {
+      return withViews.filter(function (p) { return p.rubric === k; })
+        .reduce(function (a, p) { return a + (Number(p.views) || 0); }, 0);
+    });
+    drawChart('chRubricWrap', 'rubric', '', {
+      aria: 'Столбчатый график суммарных просмотров по рубрикам',
+      chart: {
+        type: 'bar',
+        data: {
+          labels: keys.map(function (k) { return RUB[k]; }),
+          datasets: [{ data: vals, backgroundColor: [C.blue, C.accent, C.amber, C.coral], borderRadius: 5, maxBarThickness: 54 }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return n(c.parsed.x) + ' просмотров'; } } } },
+          scales: {
+            x: { beginAtZero: true, grid: AXIS.grid, border: AXIS.border, ticks: { color: C.dim, font: { size: 11 }, callback: function (v) { return n(v); } } },
+            y: { grid: { display: false }, border: AXIS.border, ticks: AXIS.ticks },
+          },
+        },
+      },
+    });
+  }
+
+  function renderDeals() {
+    var box = $('dealRows');
+    if (!S.deals.length) {
+      box.innerHTML = '<tr><td colspan="5" class="empty">Ни одной сделки. Каждая сумма — с клиентом и датой.</td></tr>';
+      return;
+    }
+    var rows = S.deals.slice().sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : 1; });
+    box.innerHTML = rows.map(function (d) {
+      return '<tr><td>' + (d.url ? '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.client) + '</a>' : esc(d.client)) + '</td>'
+        + '<td style="color:var(--muted)">' + esc(d.service || '') + '</td>'
+        + '<td><span class="tag ' + ST_CLS[d.status] + '">' + ST[d.status] + '</span></td>'
+        + '<td style="color:var(--muted)">' + esc(dmy(d.date)) + '</td>'
+        + '<td class="cell-a">' + (d.amount ? n(d.amount) : '—')
+        + ' <button class="del" data-del="deals" data-id="' + esc(d.id) + '" aria-label="удалить">&times;</button></td></tr>';
     }).join('');
   }
 
-  // ─── журнал ─────────────────────────────────────────────────────────
-  function renderJournal() {
+  function renderSubs() {
+    var box = $('subRows');
+    if (!S.subs.length) {
+      box.innerHTML = '<tr><td colspan="3" class="empty">Снимков нет. Снимать раз в неделю, в один и тот же день.</td></tr>';
+      return;
+    }
+    var rows = S.subs.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
+    box.innerHTML = rows.map(function (s) {
+      return '<tr><td>' + esc(dmy(s.date)) + '</td>'
+        + '<td style="color:var(--muted)">' + (PLAT[s.platform] || '') + '</td>'
+        + '<td class="cell-a">' + n(s.count)
+        + ' <button class="del" data-del="subs" data-id="' + esc(s.id) + '" aria-label="удалить">&times;</button></td></tr>';
+    }).join('');
+  }
+
+  function renderPosts() {
+    var box = $('postCards');
+    if (!S.posts.length) {
+      box.innerHTML = '<div class="empty">Ни одного поста.</div>';
+      return;
+    }
+    var rows = S.posts.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
+    box.innerHTML = rows.map(function (p) {
+      return '<div class="card"><span class="tag t-' + esc(p.rubric) + '">' + (RUB[p.rubric] || '') + '</span>'
+        + '<div class="card-t">' + (p.url ? '<a href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.title) + '</a>' : esc(p.title)) + '</div>'
+        + '<div class="card-m"><span>' + (PLAT[p.platform] || '') + '</span><span>·</span><span>' + esc(dmy(p.date)) + '</span>'
+        + (Number(p.views) ? '<span>·</span><span>' + n(p.views) + ' просм.</span>' : '')
+        + (Number(p.replies) ? '<span>·</span><span>' + n(p.replies) + ' откл.</span>' : '')
+        + '<button class="del" style="margin-left:auto" data-del="posts" data-id="' + esc(p.id) + '" aria-label="удалить">&times;</button></div></div>';
+    }).join('');
+  }
+
+  function renderLog() {
     var box = $('logList');
     if (!S.log.length) {
       box.innerHTML = '<div class="empty">Журнал пуст.</div>';
       return;
     }
     var rows = S.log.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
-    box.innerHTML = rows.map(function (e, idx) {
-      var items = (e.done || []).map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('');
-      return '<div class="entry">'
-        + '<div class="entry-h"><span class="date">' + esc(dmy(e.date)) + '</span>'
-        + (e.minutes ? '<span class="mins">' + e.minutes + ' мин в работе</span>' : '')
-        + '<button class="del" style="opacity:1;margin-left:auto" data-del="log" data-i="' + idx + '">&times;</button></div>'
-        + '<ul>' + items + '</ul>'
-        + (e.fail ? '<div class="fail"><b>Провал:</b> ' + esc(e.fail) + '</div>' : '')
+    box.innerHTML = rows.map(function (e) {
+      return '<div class="entry"><div class="entry-h"><span class="entry-d">' + esc(dmy(e.date)) + '</span>'
+        + (e.minutes ? '<span class="entry-m">' + e.minutes + ' мин</span>' : '')
+        + '<button class="del" style="margin-left:auto" data-del="log" data-id="' + esc(e.id) + '" aria-label="удалить">&times;</button></div>'
+        + '<ul>' + (e.done || []).map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul>'
+        + (e.fail ? '<div class="entry-f"><b>Провал:</b> ' + esc(e.fail) + '</div>' : '')
         + '</div>';
     }).join('');
   }
 
-  // ─── план ───────────────────────────────────────────────────────────
-  function renderPlan() {
-    var total = 0, done = 0;
-    S.plan.forEach(function (t) {
-      var w = Number(t.weight) || 1;
-      total += w;
-      if (t.done) done += w;
-    });
-    var pct = total ? (done / total) * 100 : 0;
-    $('pPct').textContent = Math.round(pct) + '%';
-    $('pBar').style.width = pct + '%';
-    $('pDone').textContent = 'закрыто ' + done + ' из ' + total + ' по весу';
-    $('pLeft').textContent = 'осталось ' + (100 - Math.round(pct)) + '%';
-
-    var groups = [];
-    S.plan.forEach(function (t) { if (groups.indexOf(t.group) < 0) groups.push(t.group); });
-    $('planGroups').innerHTML = groups.map(function (g) { return '<option value="' + esc(g) + '">'; }).join('');
-
-    $('planList').innerHTML = groups.map(function (g) {
-      var tasks = S.plan.filter(function (t) { return t.group === g; });
-      return '<div class="pgroup"><h3>' + esc(g) + '</h3>' + tasks.map(function (t) {
-        return '<label class="ptask' + (t.done ? ' done' : '') + '">'
-          + '<input type="checkbox" data-task="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '>'
-          + '<span class="pt">' + esc(t.title) + '</span>'
-          + '<span class="w">×' + (Number(t.weight) || 1) + '</span>'
-          + '</label>';
-      }).join('') + '</div>';
-    }).join('');
-  }
-
   function render() {
-    renderGoal();
-    renderChannel();
-    renderJournal();
-    renderPlan();
+    renderProgress();
+    renderMoneyChart();
+    renderDeals();
+    renderSubsChart();
+    renderSubs();
+    renderPosts();
+    renderRubricChart();
+    renderLog();
   }
 
-  // ─── события ────────────────────────────────────────────────────────
   function boot() {
-    $('deadline').textContent = 'до 31 декабря · ' + Math.max(0, days(today(), S.goal.deadline)) + ' дней';
+    Array.prototype.forEach.call(document.querySelectorAll('input[type=date]'), function (el) { el.value = today(); });
 
-    $('fPostRubric').innerHTML = (S.rubrics || []).map(function (r) {
-      return '<option value="' + esc(r.key) + '">' + esc(r.label) + '</option>';
-    }).join('');
-
-    Array.prototype.forEach.call(document.querySelectorAll('input[type=date]'), function (el) {
-      el.value = today();
-    });
-
-    document.querySelector('.tabs').addEventListener('click', function (e) {
-      var b = e.target.closest('.tab');
-      if (!b) return;
-      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.classList.toggle('is-on', t === b); });
-      Array.prototype.forEach.call(document.querySelectorAll('.view'), function (v) {
-        v.classList.toggle('is-on', v.id === 'v-' + b.dataset.tab);
+    Array.prototype.forEach.call(document.querySelectorAll('#passport input'), function (el) {
+      el.value = S.profile[el.dataset.p] || '';
+      el.addEventListener('input', function () {
+        S.profile[el.dataset.p] = el.value;
+        flag('…');
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () {
+          fetch('/api/data', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S) })
+            .then(function (r) { if (!r.ok) throw new Error(r.status); flag('сохранено', 'ok'); })
+            .catch(function (e) { flag('НЕ сохранено: ' + e.message, 'err'); });
+        }, 700);
       });
     });
 
-    $('fIncome').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var f = new FormData(e.target);
-      S.income.push({
-        date: f.get('date'),
-        amount: Number(f.get('amount')),
-        source: f.get('source'),
-        status: f.get('status'),
+    function hook(formId, build) {
+      $(formId).addEventListener('submit', function (e) {
+        e.preventDefault();
+        var f = new FormData(e.target);
+        build(f);
+        e.target.reset();
+        Array.prototype.forEach.call(e.target.querySelectorAll('input[type=date]'), function (el) { el.value = today(); });
+        save();
       });
-      e.target.reset();
-      e.target.querySelector('input[type=date]').value = today();
-      save();
+    }
+
+    hook('fDeal', function (f) {
+      S.deals.push({
+        id: uid(), client: f.get('client'), amount: Number(f.get('amount')) || 0,
+        status: f.get('status'), date: f.get('date'), service: f.get('service'), url: f.get('url'),
+      });
     });
 
-    $('fSnap').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var f = new FormData(e.target);
-      var ch = S.channels[f.get('platform')];
-      ch.snapshots = ch.snapshots || [];
-      var date = f.get('date');
-      var existing = ch.snapshots.filter(function (s) { return s.date === date; })[0];
-      if (existing) existing.subs = Number(f.get('subs'));
-      else ch.snapshots.push({ date: date, subs: Number(f.get('subs')) });
-      e.target.reset();
-      e.target.querySelector('input[type=date]').value = today();
-      save();
+    hook('fSub', function (f) {
+      var date = f.get('date'), plat = f.get('platform');
+      var hit = S.subs.filter(function (s) { return s.date === date && s.platform === plat; })[0];
+      if (hit) hit.count = Number(f.get('count'));
+      else S.subs.push({ id: uid(), date: date, platform: plat, count: Number(f.get('count')) });
     });
 
-    $('fPost').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var f = new FormData(e.target);
+    hook('fPost', function (f) {
       S.posts.push({
-        date: f.get('date'),
-        platform: f.get('platform'),
-        rubric: f.get('rubric'),
-        title: f.get('title'),
-        views: Number(f.get('views')) || 0,
+        id: uid(), title: f.get('title'), platform: f.get('platform'), rubric: f.get('rubric'),
+        date: f.get('date'), views: Number(f.get('views')) || 0, replies: Number(f.get('replies')) || 0, url: f.get('url'),
       });
-      e.target.reset();
-      e.target.querySelector('input[type=date]').value = today();
-      save();
     });
 
-    $('fLog').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var f = new FormData(e.target);
+    hook('fLog', function (f) {
       S.log.push({
-        date: f.get('date'),
-        minutes: Number(f.get('minutes')) || 0,
+        id: uid(), date: f.get('date'), minutes: Number(f.get('minutes')) || 0,
         done: String(f.get('done')).split('\n').map(function (s) { return s.trim(); }).filter(Boolean),
         fail: String(f.get('fail') || '').trim(),
       });
-      e.target.reset();
-      e.target.querySelector('input[type=date]').value = today();
-      save();
-    });
-
-    $('fPlan').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var f = new FormData(e.target);
-      S.plan.push({
-        id: 'u-' + Math.random().toString(36).slice(2, 8),
-        group: f.get('group'),
-        title: f.get('title'),
-        weight: Number(f.get('weight')),
-        done: false,
-      });
-      e.target.reset();
-      save();
-    });
-
-    document.addEventListener('change', function (e) {
-      var cb = e.target.closest('input[data-task]');
-      if (!cb) return;
-      S.plan.forEach(function (t) { if (t.id === cb.dataset.task) t.done = cb.checked; });
-      save();
     });
 
     document.addEventListener('click', function (e) {
       var b = e.target.closest('[data-del]');
       if (!b) return;
-      var kind = b.dataset.del;
-      if (kind === 'income') {
-        var key = b.dataset.id;
-        S.income = S.income.filter(function (i) { return i.date + '|' + i.amount + '|' + i.source !== key; });
-      } else if (kind === 'post') {
-        var sorted = S.posts.slice().sort(function (a, c) { return c.date < a.date ? -1 : 1; });
-        var victim = sorted[Number(b.dataset.i)];
-        S.posts = S.posts.filter(function (p) { return p !== victim; });
-      } else if (kind === 'log') {
-        var ls = S.log.slice().sort(function (a, c) { return c.date < a.date ? -1 : 1; });
-        var lv = ls[Number(b.dataset.i)];
-        S.log = S.log.filter(function (l) { return l !== lv; });
-      }
+      var key = b.dataset.del, id = b.dataset.id;
+      S[key] = S[key].filter(function (it) { return it.id !== id; });
       save();
     });
 

@@ -1,136 +1,25 @@
 {
   "meta": {
-    "version": 1,
+    "version": 2,
     "updated": "2026-10-09"
   },
   "goal": {
     "target": 100000,
     "currency": "AED",
     "start": "2026-10-01",
-    "deadline": "2026-12-31",
-    "note": "Суммы вношу сам. Ничего не предзаполнено — каждое число должно быть прослеживаемым."
+    "deadline": "2026-12-31"
   },
-  "income": [],
-  "channels": {
-    "telegram": {
-      "label": "Telegram",
-      "handle": "",
-      "snapshots": []
-    },
-    "threads": {
-      "label": "Threads",
-      "handle": "",
-      "snapshots": []
-    }
+  "profile": {
+    "who": "",
+    "what": "",
+    "price": "",
+    "works": "",
+    "telegram": "",
+    "threads": "",
+    "start": ""
   },
+  "deals": [],
+  "subs": [],
   "posts": [],
-  "log": [],
-  "plan": [
-    {
-      "id": "p-hub",
-      "group": "Канал: запуск",
-      "title": "Закреп-хаб с пятью живыми ссылками",
-      "weight": 2,
-      "done": false
-    },
-    {
-      "id": "p-day1",
-      "group": "Канал: запуск",
-      "title": "Пост «ДЕНЬ 1. НАЧИНАЮ С X AED»",
-      "weight": 1,
-      "done": false
-    },
-    {
-      "id": "p-lead",
-      "group": "Канал: запуск",
-      "title": "Лид-магнит в закрепе: разбор сайта за 10 минут",
-      "weight": 2,
-      "done": false
-    },
-    {
-      "id": "p-consent",
-      "group": "Канал: запуск",
-      "title": "Письменное «да» от клиентов на упоминание",
-      "weight": 2,
-      "done": false
-    },
-    {
-      "id": "p-defipay",
-      "group": "Канал: запуск",
-      "title": "Проговорить с DEFIPAY публикацию цифр",
-      "weight": 1,
-      "done": false
-    },
-    {
-      "id": "t-app",
-      "group": "Threads: мост",
-      "title": "Приложение на developers.facebook.com, scope threads_content_publish",
-      "weight": 2,
-      "done": false
-    },
-    {
-      "id": "t-token",
-      "group": "Threads: мост",
-      "title": "Токен в ~/.threads-token (в чат не присылать)",
-      "weight": 1,
-      "done": false
-    },
-    {
-      "id": "t-muse",
-      "group": "Threads: мост",
-      "title": "Установочный промпт в Muse, проверить на одном посте",
-      "weight": 2,
-      "done": false
-    },
-    {
-      "id": "t-cron",
-      "group": "Threads: мост",
-      "title": "Публикация по расписанию 20:00 Дубай",
-      "weight": 2,
-      "done": false
-    },
-    {
-      "id": "t-funnel",
-      "group": "Threads: мост",
-      "title": "Ссылка на Telegram в каждом посте Threads",
-      "weight": 1,
-      "done": false
-    },
-    {
-      "id": "d-repo",
-      "group": "Дашборд",
-      "title": "Приватный репо JakeWhite-ui/kanal + синк на второй Mac",
-      "weight": 1,
-      "done": false
-    },
-    {
-      "id": "d-stats",
-      "group": "Дашборд",
-      "title": "Снимать подписчиков раз в неделю",
-      "weight": 1,
-      "done": false
-    }
-  ],
-  "rubrics": [
-    {
-      "key": "report",
-      "label": "Отчёт",
-      "color": "#2F6FB5"
-    },
-    {
-      "key": "teardown",
-      "label": "Разбор",
-      "color": "#2E8B57"
-    },
-    {
-      "key": "dubai",
-      "label": "Дубай как он есть",
-      "color": "#C9962B"
-    },
-    {
-      "key": "personal",
-      "label": "Личное",
-      "color": "#C8463C"
-    }
-  ]
+  "log": []
 }
