@@ -1,4 +1,4 @@
-/* Дашборд 100 000 AED. Источник правды — data.json, сервер пишет его целиком.
+/* Путь к 100 000 AED. Источник правды — data.json, сервер пишет его целиком.
    Без ES-модулей намеренно: ?v= на <script src> не бустит импорты внутри модуля. */
 (function () {
   'use strict';
@@ -9,12 +9,15 @@
   var $ = function (id) { return document.getElementById(id); };
 
   var RUB = { report: 'Отчёт', teardown: 'Разбор', dubai: 'Дубай', personal: 'Личное' };
-  var ST = { lead: 'Лид', work: 'В работе', invoiced: 'Счёт выставлен', paid: 'Оплачено' };
+  var ST = { lead: 'Лид', work: 'В работе', invoiced: 'Счёт', paid: 'Оплачено' };
   var ST_CLS = { lead: 't-lead', work: 't-work', invoiced: 't-inv', paid: 't-paid' };
   var PLAT = { threads: 'Threads', telegram: 'Telegram' };
   var MON = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
-  var C = { accent: '#0F6E56', blue: '#378ADD', amber: '#BA7517', coral: '#D85A30', line: '#E9E8E4', dim: '#9B9A93' };
+  var C = {
+    acc: '#00E5A0', blue: '#4D7CFE', amber: '#FFB020', coral: '#FF6B4A',
+    grid: 'rgba(255,255,255,.07)', tick: '#6E7682',
+  };
 
   var n = function (v) { return Math.round(Number(v) || 0).toLocaleString('ru-RU').replace(/ /g, ' '); };
   var today = function () {
@@ -58,31 +61,78 @@
         return { id: uid(), client: i.source, amount: i.amount, status: i.status === 'paid' ? 'paid' : 'invoiced', date: i.date, service: '', url: '' };
       });
     }
-    delete d.income;
-    delete d.channels;
-    delete d.plan;
-    delete d.rubrics;
+    delete d.income; delete d.channels; delete d.plan; delete d.rubrics;
     [d.deals, d.subs, d.posts, d.log].forEach(function (arr) {
       arr.forEach(function (it) { if (!it.id) it.id = uid(); });
     });
     return d;
   }
 
-  function save() {
-    render();
+  function push() {
+    return fetch('/api/data', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(S),
+    }).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+    });
+  }
+
+  function save(skipRender) {
+    if (!skipRender) render();
     flag('…');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
-      fetch('/api/data', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(S),
-      })
-        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
-        .then(function () { flag('сохранено', 'ok'); })
+      push().then(function () { flag('сохранено', 'ok'); })
         .catch(function (e) { flag('НЕ сохранено: ' + e.message, 'err'); });
     }, 500);
   }
+
+  // Счётчик набирает значение — цифра должна ощущаться живой, а не подставленной.
+  function countUp(el, to) {
+    var from = Number(String(el.textContent).replace(/\D/g, '')) || 0;
+    if (from === to) { el.textContent = n(to); return; }
+    var t0 = performance.now(), dur = 900;
+    (function tick(t) {
+      var k = Math.min(1, (t - t0) / dur);
+      var e = 1 - Math.pow(1 - k, 3);
+      el.textContent = n(from + (to - from) * e);
+      if (k < 1) requestAnimationFrame(tick);
+    })(t0);
+  }
+
+  // Вертикальный градиент под площадь графика — рисуется по готовой области canvas.
+  function fade(ctx, area, hex, top, bottom) {
+    if (!area) return 'transparent';
+    var g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
+    g.addColorStop(0, hex + top);
+    g.addColorStop(1, hex + bottom);
+    return g;
+  }
+
+  var glowPlugin = {
+    id: 'glow',
+    beforeDatasetsDraw: function (chart) {
+      chart.ctx.save();
+      chart.ctx.shadowColor = 'rgba(0,229,160,.45)';
+      chart.ctx.shadowBlur = 18;
+    },
+    afterDatasetsDraw: function (chart) { chart.ctx.restore(); },
+  };
+
+  var TICK = { color: C.tick, font: { size: 11, family: "'JetBrains Mono', monospace" } };
+  var TIP = {
+    backgroundColor: 'rgba(12,14,18,.95)',
+    borderColor: 'rgba(255,255,255,.12)',
+    borderWidth: 1,
+    titleColor: '#EDEFF2',
+    bodyColor: '#B4BAC4',
+    padding: 11,
+    cornerRadius: 9,
+    displayColors: false,
+    titleFont: { family: "'Space Grotesk', sans-serif", size: 12 },
+    bodyFont: { family: "'JetBrains Mono', monospace", size: 13 },
+  };
 
   function drawChart(wrapId, key, emptyText, cfg) {
     var wrap = $(wrapId);
@@ -96,12 +146,6 @@
     charts[key] = new Chart($('cv-' + key), cfg.chart);
   }
 
-  var AXIS = {
-    grid: { color: C.line, drawTicks: false },
-    border: { display: false },
-    ticks: { color: C.dim, font: { size: 11 } },
-  };
-
   function renderProgress() {
     var paid = 0, other = 0, closed = 0;
     S.deals.forEach(function (d) {
@@ -111,7 +155,7 @@
     var target = S.goal.target || 100000;
     var pct = (paid / target) * 100;
 
-    $('gPaid').textContent = n(paid);
+    countUp($('gPaid'), paid);
     $('gPct').textContent = (pct > 0 && pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%';
     $('gBar').style.width = Math.min(100, pct) + '%';
     $('gNote').textContent = other > 0
@@ -131,13 +175,13 @@
     $('mSubs').textContent = S.subs.length ? n(total) : '—';
 
     var days = Math.max(0, Math.round((new Date(S.goal.deadline) - new Date(today())) / 864e5));
-    $('pDays').textContent = days + ' дней осталось';
+    $('cDays').innerHTML = days + '<span> дней</span>';
   }
 
   function renderMoneyChart() {
     var paid = S.deals.filter(function (d) { return d.status === 'paid' && d.date; });
     if (!paid.length) {
-      drawChart('chMoneyWrap', 'money', 'График появится, когда будет первая оплаченная сделка с датой');
+      drawChart('chMoneyWrap', 'money', 'Появится с первой оплаченной сделкой');
       return;
     }
     var months = {};
@@ -146,20 +190,34 @@
       months[k] = (months[k] || 0) + (Number(d.amount) || 0);
     });
     var keys = Object.keys(months).sort();
-    var labels = keys.map(function (k) { return MON[Number(k.slice(5, 7)) - 1]; });
     drawChart('chMoneyWrap', 'money', '', {
       aria: 'Столбчатый график оплаченных сумм по месяцам',
       chart: {
         type: 'bar',
-        data: { labels: labels, datasets: [{ data: keys.map(function (k) { return months[k]; }), backgroundColor: C.accent, borderRadius: 5, maxBarThickness: 54 }] },
+        data: {
+          labels: keys.map(function (k) { return MON[Number(k.slice(5, 7)) - 1]; }),
+          datasets: [{
+            data: keys.map(function (k) { return months[k]; }),
+            backgroundColor: function (c) { return fade(c.chart.ctx, c.chart.chartArea, C.acc, 'FF', '22'); },
+            borderRadius: 7, maxBarThickness: 58,
+          }],
+        },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return n(c.parsed.y) + ' AED'; } } } },
+          animation: { duration: 900, easing: 'easeOutCubic' },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign({}, TIP, { callbacks: { label: function (c) { return n(c.parsed.y) + ' AED'; } } }),
+          },
           scales: {
-            x: { grid: { display: false }, border: { display: false }, ticks: AXIS.ticks },
-            y: { beginAtZero: true, grid: AXIS.grid, border: AXIS.border, ticks: { color: C.dim, font: { size: 11 }, callback: function (v) { return n(v); } } },
+            x: { grid: { display: false }, border: { display: false }, ticks: TICK },
+            y: {
+              beginAtZero: true, grid: { color: C.grid, drawTicks: false }, border: { display: false },
+              ticks: Object.assign({}, TICK, { callback: function (v) { return n(v); } }),
+            },
           },
         },
+        plugins: [glowPlugin],
       },
     });
   }
@@ -173,19 +231,21 @@
     S.subs.forEach(function (s) { if (dates.indexOf(s.date) < 0) dates.push(s.date); });
     dates.sort();
     var sets = [];
-    ['threads', 'telegram'].forEach(function (p, i) {
+    [['threads', C.acc], ['telegram', C.blue]].forEach(function (pair, i) {
       var pts = dates.map(function (d) {
-        var hit = S.subs.filter(function (s) { return s.platform === p && s.date === d; })[0];
+        var hit = S.subs.filter(function (s) { return s.platform === pair[0] && s.date === d; })[0];
         return hit ? Number(hit.count) || 0 : null;
       });
       if (pts.some(function (v) { return v !== null; })) {
         sets.push({
-          label: PLAT[p], data: pts, spanGaps: true,
-          borderColor: i ? C.blue : C.accent,
-          backgroundColor: i ? C.blue : C.accent,
-          borderDash: i ? [5, 4] : [],
+          label: PLAT[pair[0]], data: pts, spanGaps: true,
+          borderColor: pair[1],
+          backgroundColor: function (c) { return fade(c.chart.ctx, c.chart.chartArea, pair[1], '38', '00'); },
+          fill: true,
+          borderDash: i ? [6, 4] : [],
           pointStyle: i ? 'rect' : 'circle',
-          pointRadius: 3, borderWidth: 2, tension: .25,
+          pointBackgroundColor: pair[1], pointBorderColor: '#07080A', pointBorderWidth: 2,
+          pointRadius: 4, pointHoverRadius: 6, borderWidth: 2.5, tension: .35,
         });
       }
     });
@@ -196,12 +256,24 @@
         data: { labels: dates.map(dmy), datasets: sets },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 7, boxHeight: 7, padding: 18, color: C.dim, font: { size: 12 } } } },
+          animation: { duration: 1000, easing: 'easeOutCubic' },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              position: 'top', align: 'end',
+              labels: {
+                usePointStyle: true, boxWidth: 7, boxHeight: 7, padding: 18,
+                color: C.tick, font: { size: 11, family: "'JetBrains Mono', monospace" },
+              },
+            },
+            tooltip: TIP,
+          },
           scales: {
-            x: { grid: { display: false }, border: AXIS.border, ticks: AXIS.ticks },
-            y: { beginAtZero: true, grid: AXIS.grid, border: AXIS.border, ticks: AXIS.ticks },
+            x: { grid: { display: false }, border: { display: false }, ticks: TICK },
+            y: { beginAtZero: true, grid: { color: C.grid, drawTicks: false }, border: { display: false }, ticks: TICK },
           },
         },
+        plugins: [glowPlugin],
       },
     });
   }
@@ -209,29 +281,39 @@
   function renderRubricChart() {
     var withViews = S.posts.filter(function (p) { return Number(p.views) > 0; });
     if (!withViews.length) {
-      drawChart('chRubricWrap', 'rubric', 'График по рубрикам появится, когда у постов будут просмотры');
+      drawChart('chRubricWrap', 'rubric', 'Появится, когда у постов будут просмотры');
       return;
     }
     var keys = Object.keys(RUB);
-    var vals = keys.map(function (k) {
-      return withViews.filter(function (p) { return p.rubric === k; })
-        .reduce(function (a, p) { return a + (Number(p.views) || 0); }, 0);
-    });
     drawChart('chRubricWrap', 'rubric', '', {
       aria: 'Столбчатый график суммарных просмотров по рубрикам',
       chart: {
         type: 'bar',
         data: {
           labels: keys.map(function (k) { return RUB[k]; }),
-          datasets: [{ data: vals, backgroundColor: [C.blue, C.accent, C.amber, C.coral], borderRadius: 5, maxBarThickness: 54 }],
+          datasets: [{
+            data: keys.map(function (k) {
+              return withViews.filter(function (p) { return p.rubric === k; })
+                .reduce(function (a, p) { return a + (Number(p.views) || 0); }, 0);
+            }),
+            backgroundColor: [C.blue, C.acc, C.amber, C.coral],
+            borderRadius: 7, maxBarThickness: 26,
+          }],
         },
         options: {
           indexAxis: 'y',
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return n(c.parsed.x) + ' просмотров'; } } } },
+          animation: { duration: 900, easing: 'easeOutCubic' },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign({}, TIP, { callbacks: { label: function (c) { return n(c.parsed.x) + ' просмотров'; } } }),
+          },
           scales: {
-            x: { beginAtZero: true, grid: AXIS.grid, border: AXIS.border, ticks: { color: C.dim, font: { size: 11 }, callback: function (v) { return n(v); } } },
-            y: { grid: { display: false }, border: AXIS.border, ticks: AXIS.ticks },
+            x: {
+              beginAtZero: true, grid: { color: C.grid, drawTicks: false }, border: { display: false },
+              ticks: Object.assign({}, TICK, { callback: function (v) { return n(v); } }),
+            },
+            y: { grid: { display: false }, border: { display: false }, ticks: TICK },
           },
         },
       },
@@ -247,9 +329,9 @@
     var rows = S.deals.slice().sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : 1; });
     box.innerHTML = rows.map(function (d) {
       return '<tr><td>' + (d.url ? '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.client) + '</a>' : esc(d.client)) + '</td>'
-        + '<td style="color:var(--muted)">' + esc(d.service || '') + '</td>'
+        + '<td>' + esc(d.service || '') + '</td>'
         + '<td><span class="tag ' + ST_CLS[d.status] + '">' + ST[d.status] + '</span></td>'
-        + '<td style="color:var(--muted)">' + esc(dmy(d.date)) + '</td>'
+        + '<td class="tnum" style="font-size:12px">' + esc(dmy(d.date)) + '</td>'
         + '<td class="cell-a">' + (d.amount ? n(d.amount) : '—')
         + ' <button class="del" data-del="deals" data-id="' + esc(d.id) + '" aria-label="удалить">&times;</button></td></tr>';
     }).join('');
@@ -263,8 +345,8 @@
     }
     var rows = S.subs.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
     box.innerHTML = rows.map(function (s) {
-      return '<tr><td>' + esc(dmy(s.date)) + '</td>'
-        + '<td style="color:var(--muted)">' + (PLAT[s.platform] || '') + '</td>'
+      return '<tr><td class="tnum" style="font-size:12px">' + esc(dmy(s.date)) + '</td>'
+        + '<td>' + (PLAT[s.platform] || '') + '</td>'
         + '<td class="cell-a">' + n(s.count)
         + ' <button class="del" data-del="subs" data-id="' + esc(s.id) + '" aria-label="удалить">&times;</button></td></tr>';
     }).join('');
@@ -307,11 +389,11 @@
   function render() {
     renderProgress();
     renderMoneyChart();
-    renderDeals();
     renderSubsChart();
+    renderRubricChart();
+    renderDeals();
     renderSubs();
     renderPosts();
-    renderRubricChart();
     renderLog();
   }
 
@@ -322,21 +404,14 @@
       el.value = S.profile[el.dataset.p] || '';
       el.addEventListener('input', function () {
         S.profile[el.dataset.p] = el.value;
-        flag('…');
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(function () {
-          fetch('/api/data', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S) })
-            .then(function (r) { if (!r.ok) throw new Error(r.status); flag('сохранено', 'ok'); })
-            .catch(function (e) { flag('НЕ сохранено: ' + e.message, 'err'); });
-        }, 700);
+        save(true);
       });
     });
 
     function hook(formId, build) {
       $(formId).addEventListener('submit', function (e) {
         e.preventDefault();
-        var f = new FormData(e.target);
-        build(f);
+        build(new FormData(e.target));
         e.target.reset();
         Array.prototype.forEach.call(e.target.querySelectorAll('input[type=date]'), function (el) { el.value = today(); });
         save();
@@ -375,8 +450,7 @@
     document.addEventListener('click', function (e) {
       var b = e.target.closest('[data-del]');
       if (!b) return;
-      var key = b.dataset.del, id = b.dataset.id;
-      S[key] = S[key].filter(function (it) { return it.id !== id; });
+      S[b.dataset.del] = S[b.dataset.del].filter(function (it) { return it.id !== b.dataset.id; });
       save();
     });
 
