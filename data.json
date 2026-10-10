@@ -1,22 +1,23 @@
 {
   "meta": {
-    "version": 2,
-    "updated": "2026-10-09"
+    "version": 3,
+    "updated": "2026-10-10"
   },
-  "goal": {
-    "target": 100000,
-    "currency": "AED",
-    "start": "2026-10-01",
-    "deadline": "2026-12-31"
+  "settings": {
+    "title": "",
+    "subtitle": "",
+    "currency": "",
+    "goal": "",
+    "deadline": "",
+    "platforms": "",
+    "rubrics": ""
   },
   "profile": {
     "who": "",
     "what": "",
     "price": "",
     "works": "",
-    "telegram": "",
-    "threads": "",
-    "start": ""
+    "contact": ""
   },
   "deals": [],
   "subs": [],
