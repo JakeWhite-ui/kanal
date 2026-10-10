@@ -3,180 +3,195 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Дашборд</title>
-<link rel="stylesheet" href="app.css?v=5">
+<title>Dark Fusion Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%230C0B11'/%3E%3Ccircle cx='12' cy='12' r='6.2' fill='none' stroke='%23FF752A' stroke-width='3.8' stroke-dasharray='32 7.5' transform='rotate(-58 12 12)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css?v=7">
 </head>
 <body>
 
 <aside class="side">
   <div class="brand">
-    <div class="brand-ic" id="brandIc">Д</div>
-    <div class="brand-t" id="brandT">Дашборд</div>
+    <div class="brand-ic">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="#FF752A" stroke-width="5" stroke-dasharray="41 9.3" transform="rotate(-58 12 12)"/></svg>
+    </div>
+    <div class="brand-t" id="brandT">Dark Fusion</div>
   </div>
   <nav>
     <button class="nav-i on" data-v="overview">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-      Обзор
+      <span data-i18n="nav.overview">Обзор</span>
     </button>
     <button class="nav-i" data-v="deals">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6.5" width="19" height="13" rx="2"/><path d="M8.5 6.5V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5"/></svg>
-      Сделки <span class="c" id="cDeals"></span>
+      <span data-i18n="nav.deals">Сделки</span> <span class="c" id="cDeals"></span>
     </button>
     <button class="nav-i" data-v="content">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>
-      Контент <span class="c" id="cPosts"></span>
+      <span data-i18n="nav.content">Контент</span> <span class="c" id="cPosts"></span>
     </button>
     <button class="nav-i" data-v="journal">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3.5h11l3.5 3.5v13.5H5z"/><path d="M8.5 11h7M8.5 15h4.5"/></svg>
-      Журнал <span class="c" id="cLog"></span>
+      <span data-i18n="nav.journal">Журнал</span> <span class="c" id="cLog"></span>
     </button>
     <button class="nav-i" data-v="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg>
-      Настройки
+      <span data-i18n="nav.settings">Настройки</span>
     </button>
   </nav>
+
   <div class="side-b">
+    <div class="lang">
+      <button data-lang="ru">RU</button>
+      <button data-lang="en">EN</button>
+    </div>
     <button class="theme-t" id="themeT">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 13.5A8.5 8.5 0 1 1 10.5 4a6.6 6.6 0 0 0 9.5 9.5z"/></svg>
-      <span id="themeL">Тёмная тема</span>
+      <span id="themeL"></span>
     </button>
     <span class="saved" id="saved"></span>
+    <a class="powered" href="https://www.instagram.com/darkfusion.agency" target="_blank" rel="noopener">
+      <span class="pb-ic">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="#FF752A" stroke-width="5" stroke-dasharray="41 9.3" transform="rotate(-58 12 12)"/></svg>
+      </span>
+      <span class="pb-t"><span data-i18n="poweredBy">Powered by</span><b>Dark Fusion</b></span>
+    </a>
   </div>
 </aside>
 
 <main>
-  <div class="bar"><span class="crumb" id="crumb">Дашборд</span><span id="barT">Обзор</span></div>
+  <div class="bar"><span class="crumb" id="crumb"></span><span id="barT"></span></div>
 
   <section class="view on" id="v-overview">
-    <h1 id="ovTitle">Обзор</h1>
+    <h1 id="ovTitle"></h1>
     <div class="sub" id="ovSub"></div>
 
     <div id="goalBox"></div>
 
     <div class="grid g4">
-      <div class="card lift"><div class="m-k">Получено</div><div class="m-v" id="mPaid">0</div><div class="m-s" id="mPaidS"></div></div>
-      <div class="card lift"><div class="m-k">В работе</div><div class="m-v" id="mWork">0</div><div class="m-s">не оплачено</div></div>
-      <div class="card lift"><div class="m-k">Публикаций</div><div class="m-v" id="mPosts">0</div><div class="m-s" id="mPostsS">всего</div></div>
-      <div class="card lift"><div class="m-k">Подписчиков</div><div class="m-v" id="mSubs">—</div><div class="m-s" id="mSubsS">последний снимок</div></div>
+      <div class="card lift"><div class="m-k" data-i18n="m.received">Получено</div><div class="m-v" id="mPaid">0</div><div class="m-s" id="mPaidS"></div></div>
+      <div class="card lift"><div class="m-k" data-i18n="m.inWork">В работе</div><div class="m-v" id="mWork">0</div><div class="m-s" data-i18n="m.unpaid">не оплачено</div></div>
+      <div class="card lift"><div class="m-k" data-i18n="m.posts">Публикаций</div><div class="m-v" id="mPosts">0</div><div class="m-s" data-i18n="m.total">всего</div></div>
+      <div class="card lift"><div class="m-k" data-i18n="m.subs">Подписчиков</div><div class="m-v" id="mSubs">—</div><div class="m-s" id="mSubsS"></div></div>
     </div>
 
-    <h2>Поступления по месяцам</h2>
+    <h2 data-i18n="ch.money">Поступления по месяцам</h2>
     <div class="card"><div id="chMoney"></div></div>
 
     <div class="grid g2" style="margin-top:13px">
-      <div class="card"><div class="m-k">Рост подписчиков</div><div id="chSubs"></div></div>
-      <div class="card"><div class="m-k">Просмотры по рубрикам</div><div id="chRubric"></div></div>
+      <div class="card"><div class="m-k" data-i18n="ch.subs">Рост подписчиков</div><div id="chSubs"></div></div>
+      <div class="card"><div class="m-k" data-i18n="ch.rubric">Просмотры по рубрикам</div><div id="chRubric"></div></div>
     </div>
   </section>
 
   <section class="view" id="v-deals">
-    <h1>Сделки</h1>
-    <div class="sub">Каждая сумма — с клиентом и датой, чтобы цифру можно было проследить.</div>
+    <h1 data-i18n="nav.deals">Сделки</h1>
+    <div class="sub" data-i18n="deals.sub">Каждая сумма — с клиентом и датой, чтобы цифру можно было проследить.</div>
     <form class="row" id="fDeal">
-      <input type="text" name="client" class="grow" placeholder="клиент" required>
-      <input type="number" name="amount" placeholder="сумма" step="1" min="0">
-      <select name="status">
-        <option value="lead">Лид</option>
-        <option value="work">В работе</option>
-        <option value="invoiced">Счёт выставлен</option>
-        <option value="paid" selected>Получено</option>
-      </select>
+      <input type="text" name="client" class="grow" data-ph="f.client" required>
+      <input type="number" name="amount" data-ph="f.amount" step="1" min="0">
+      <select name="status" id="dealStatus"></select>
       <input type="date" name="date">
-      <input type="text" name="service" class="grow" placeholder="услуга">
-      <input type="url" name="url" class="grow" placeholder="https://ссылка">
-      <button type="submit">Добавить</button>
+      <input type="text" name="service" class="grow" data-ph="f.service">
+      <input type="url" name="url" class="grow" data-ph="f.link">
+      <button type="submit" data-i18n="f.add">Добавить</button>
     </form>
     <table>
-      <thead><tr><th>Клиент</th><th>Услуга</th><th>Статус</th><th>Дата</th><th>Сумма</th></tr></thead>
+      <thead><tr>
+        <th data-i18n="th.client">Клиент</th><th data-i18n="th.service">Услуга</th>
+        <th data-i18n="th.status">Статус</th><th data-i18n="th.date">Дата</th><th data-i18n="th.amount">Сумма</th>
+      </tr></thead>
       <tbody id="dealRows"></tbody>
     </table>
   </section>
 
   <section class="view" id="v-content">
-    <h1>Контент</h1>
-    <div class="sub">Что вышло и как это отработало.</div>
+    <h1 data-i18n="nav.content">Контент</h1>
+    <div class="sub" data-i18n="content.sub">Что вышло и как это отработало.</div>
 
     <form class="row" id="fPost">
-      <input type="text" name="title" class="grow" placeholder="заголовок" required>
+      <input type="text" name="title" class="grow" data-ph="f.title" required>
       <select name="platform" id="postPlat"></select>
       <select name="rubric" id="postRub"></select>
       <input type="date" name="date" required>
-      <input type="number" name="views" placeholder="просм." step="1" min="0">
-      <input type="number" name="replies" placeholder="откл." step="1" min="0">
-      <input type="url" name="url" class="grow" placeholder="https://ссылка">
-      <button type="submit">Добавить</button>
+      <input type="number" name="views" data-ph="f.views" step="1" min="0">
+      <input type="number" name="replies" data-ph="f.replies" step="1" min="0">
+      <input type="url" name="url" class="grow" data-ph="f.link">
+      <button type="submit" data-i18n="f.add">Добавить</button>
     </form>
     <div class="cards" id="postCards"></div>
 
-    <h2>Снимки подписчиков</h2>
+    <h2 data-i18n="subs.h">Снимки подписчиков</h2>
     <form class="row" id="fSub">
       <input type="date" name="date" required>
       <select name="platform" id="subPlat"></select>
-      <input type="number" name="count" placeholder="подписчиков" step="1" min="0" required>
-      <button type="submit">Записать</button>
+      <input type="number" name="count" data-ph="f.subs" step="1" min="0" required>
+      <button type="submit" data-i18n="f.record">Записать</button>
     </form>
     <table>
-      <thead><tr><th>Дата</th><th>Площадка</th><th>Подписчиков</th></tr></thead>
+      <thead><tr>
+        <th data-i18n="th.date">Дата</th><th data-i18n="th.platform">Площадка</th><th data-i18n="th.subs">Подписчиков</th>
+      </tr></thead>
       <tbody id="subRows"></tbody>
     </table>
   </section>
 
   <section class="view" id="v-journal">
-    <h1>Журнал</h1>
-    <div class="sub">Провал дня заполнять всегда — без него через месяц не понять, что ломалось.</div>
+    <h1 data-i18n="nav.journal">Журнал</h1>
+    <div class="sub" data-i18n="journal.sub">Провал дня заполнять всегда — без него через месяц не понять, что ломалось.</div>
     <form class="stack" id="fLog">
       <div class="row" style="margin:0">
         <input type="date" name="date" required>
-        <input type="number" name="minutes" placeholder="минут в работе" step="5" min="0">
+        <input type="number" name="minutes" data-ph="f.minutes" step="5" min="0">
       </div>
-      <textarea name="done" rows="3" placeholder="Сделано — по одному пункту на строку" required></textarea>
-      <textarea name="fail" rows="2" placeholder="Провал дня"></textarea>
-      <div><button type="submit">Записать день</button></div>
+      <textarea name="done" rows="3" data-ph="f.done" required></textarea>
+      <textarea name="fail" rows="2" data-ph="f.fail"></textarea>
+      <div><button type="submit" data-i18n="f.logDay">Записать день</button></div>
     </form>
     <div id="logList"></div>
   </section>
 
   <section class="view" id="v-settings">
-    <h1>Настройки</h1>
-    <div class="sub">Всё, что показывает дашборд, берётся отсюда. Пустое поле — блок просто не показывается.</div>
+    <h1 data-i18n="nav.settings">Настройки</h1>
+    <div class="sub" data-i18n="set.sub">Всё, что показывает дашборд, берётся отсюда. Пустое поле — блок просто не показывается.</div>
 
-    <h2>Дашборд</h2>
+    <h2 data-i18n="set.dash">Дашборд</h2>
     <div class="card">
-      <div class="pf"><label>Название</label><input data-s="title" placeholder="как назвать"></div>
-      <div class="pf"><label>Подзаголовок</label><input data-s="subtitle" placeholder="одной строкой, необязательно"></div>
-      <div class="pf"><label>Валюта</label><input data-s="currency" placeholder="AED, $, ₽ — как писать рядом с суммами"></div>
+      <div class="pf"><label data-i18n="set.title">Название</label><input data-s="title" data-ph="set.titlePh"></div>
+      <div class="pf"><label data-i18n="set.subtitle">Подзаголовок</label><input data-s="subtitle" data-ph="set.subtitlePh"></div>
+      <div class="pf"><label data-i18n="set.currency">Валюта</label><input data-s="currency" data-ph="set.currencyPh"></div>
     </div>
 
-    <h2>Цель</h2>
+    <h2 data-i18n="set.goal">Цель</h2>
     <div class="card">
-      <div class="pf"><label>Сумма цели</label><input type="number" data-s="goal" step="1" min="0" placeholder="оставь пустым, если цели нет"></div>
-      <div class="pf"><label>Срок</label><input type="date" data-s="deadline"></div>
-      <div class="pf"><span class="hint">Пока сумма не заполнена, блок прогресса не показывается. Срок — тоже на твоё усмотрение.</span></div>
+      <div class="pf"><label data-i18n="set.goalAmount">Сумма цели</label><input type="number" data-s="goal" step="1" min="0" data-ph="set.goalPh"></div>
+      <div class="pf"><label data-i18n="set.deadline">Срок</label><input type="date" data-s="deadline"></div>
+      <div class="pf"><span class="hint" data-i18n="set.goalHint">Пока сумма не заполнена, блок прогресса не показывается.</span></div>
     </div>
 
-    <h2>Площадки</h2>
+    <h2 data-i18n="set.platforms">Площадки</h2>
     <div class="card">
-      <div class="pf"><label>Через запятую</label><input data-s="platforms" placeholder="Threads, Telegram, Instagram"></div>
-      <div class="pf"><span class="hint">Подставляются в выпадающие списки постов и снимков подписчиков.</span></div>
+      <div class="pf"><label data-i18n="set.commaSep">Через запятую</label><input data-s="platforms" data-ph="set.platformsPh"></div>
+      <div class="pf"><span class="hint" data-i18n="set.platformsHint">Подставляются в выпадающие списки публикаций и снимков.</span></div>
     </div>
 
-    <h2>Рубрики</h2>
+    <h2 data-i18n="set.rubrics">Рубрики</h2>
     <div class="card">
-      <div class="pf"><label>Через запятую</label><input data-s="rubrics" placeholder="Отчёт, Разбор, Личное"></div>
+      <div class="pf"><label data-i18n="set.commaSep">Через запятую</label><input data-s="rubrics" data-ph="set.rubricsPh"></div>
     </div>
 
-    <h2>Профиль</h2>
+    <h2 data-i18n="set.profile">Профиль</h2>
     <div class="card">
-      <div class="pf"><label>Кто я</label><input data-p="who" placeholder="одной строкой"></div>
-      <div class="pf"><label>Что продаю</label><input data-p="what" placeholder="услуга"></div>
-      <div class="pf"><label>Прайс</label><input data-p="price" placeholder="сколько стоит"></div>
-      <div class="pf"><label>Работы</label><input data-p="works" placeholder="ссылки через запятую"></div>
-      <div class="pf"><label>Контакт</label><input data-p="contact" placeholder="куда писать"></div>
+      <div class="pf"><label data-i18n="set.who">Кто я</label><input data-p="who" data-ph="set.whoPh"></div>
+      <div class="pf"><label data-i18n="set.what">Что продаю</label><input data-p="what" data-ph="set.whatPh"></div>
+      <div class="pf"><label data-i18n="set.price">Прайс</label><input data-p="price" data-ph="set.pricePh"></div>
+      <div class="pf"><label data-i18n="set.works">Работы</label><input data-p="works" data-ph="set.worksPh"></div>
+      <div class="pf"><label data-i18n="set.contact">Контакт</label><input data-p="contact" data-ph="set.contactPh"></div>
     </div>
   </section>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="app.js?v=5"></script>
+<script src="i18n.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

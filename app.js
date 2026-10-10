@@ -1,22 +1,28 @@
-/* Дашборд. Источник правды — data.json, сервер пишет его целиком.
+/* Dark Fusion Dashboard. Источник правды — data.json, сервер пишет его целиком.
    Ничего не захардкожено: название, валюта, цель, площадки и рубрики живут в настройках.
+   Интерфейс двуязычный, словарь в i18n.js.
    Без ES-модулей намеренно: ?v= на <script src> не бустит импорты внутри модуля. */
 (function () {
   'use strict';
 
   var S = null;
+  var L = 'ru';
   var saveTimer = null;
   var charts = {};
   var $ = function (id) { return document.getElementById(id); };
 
-  var ST = { lead: 'Лид', work: 'В работе', invoiced: 'Счёт выставлен', paid: 'Получено' };
+  var STATUSES = ['lead', 'work', 'invoiced', 'paid'];
   var ST_CLS = { lead: 't-lead', work: 't-work', invoiced: 't-inv', paid: 't-paid' };
   var TAG_CLS = ['t-report', 't-teardown', 't-dubai', 't-personal'];
-  var MON = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
   var OLD_RUB = { report: 'Отчёт', teardown: 'Разбор', dubai: 'Дубай', personal: 'Личное' };
   var OLD_PLAT = { threads: 'Threads', telegram: 'Telegram' };
 
-  var n = function (v) { return Math.round(Number(v) || 0).toLocaleString('ru-RU').replace(/ /g, ' '); };
+  var t = function (k) {
+    var v = window.I18N[L][k];
+    return v === undefined ? k : v;
+  };
+
+  var n = function (v) { return Math.round(Number(v) || 0).toLocaleString(L === 'ru' ? 'ru-RU' : 'en-US'); };
   var cur = function () { return (S.settings.currency || '').trim(); };
   var money = function (v) { var c = cur(); return n(v) + (c ? ' ' + c : ''); };
   var today = function () {
@@ -25,7 +31,9 @@
   };
   var dmy = function (iso) {
     var p = String(iso || '').split('-');
-    return p.length === 3 ? Number(p[2]) + ' ' + MON[Number(p[1]) - 1] : '';
+    if (p.length !== 3) return '';
+    var mon = t('months')[Number(p[1]) - 1];
+    return L === 'ru' ? Number(p[2]) + ' ' + mon : mon + ' ' + Number(p[2]);
   };
   var uid = function () { return Math.random().toString(36).slice(2, 10); };
   var esc = function (s) {
@@ -35,6 +43,14 @@
   };
   var list = function (str) {
     return String(str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  };
+  // Русский требует трёх форм, английскому хватает двух — обе ветки живут в словаре.
+  var plural = function (c) {
+    if (L !== 'ru') return c === 1 ? t('deal1') : t('deal2');
+    var m10 = c % 10, m100 = c % 100;
+    if (m10 === 1 && m100 !== 11) return t('deal1');
+    if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return t('deal2');
+    return t('deal5');
   };
 
   function flag(text, kind) {
@@ -47,7 +63,7 @@
     fetch('/api/data', { cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (d) { S = migrate(d); boot(); })
-      .catch(function (e) { flag('не читается data.json — ' + e.message, 'err'); });
+      .catch(function (e) { flag(t('readErr') + e.message, 'err'); });
   }
 
   // Файл мог быть любой из прошлых версий — достраиваем недостающее, ничего не теряя.
@@ -72,7 +88,6 @@
     }
     delete d.income; delete d.channels; delete d.plan; delete d.rubrics;
 
-    // Рубрики и площадки раньше были служебными ключами, теперь это обычный текст.
     d.posts.forEach(function (p) {
       if (OLD_RUB[p.rubric]) p.rubric = OLD_RUB[p.rubric];
       if (OLD_PLAT[p.platform]) p.platform = OLD_PLAT[p.platform];
@@ -95,11 +110,11 @@
 
   function save(skipRender) {
     if (!skipRender) render();
-    flag('…');
+    flag(t('saving'));
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
-      push().then(function () { flag('сохранено', 'ok'); })
-        .catch(function (e) { flag('не сохранено: ' + e.message, 'err'); });
+      push().then(function () { flag(t('saved'), 'ok'); })
+        .catch(function (e) { flag(t('saveErr') + e.message, 'err'); });
     }, 500);
   }
 
@@ -107,8 +122,8 @@
     var from = Number(String(el.textContent).replace(/[^\d]/g, '')) || 0;
     if (from === to) { el.textContent = n(to); return; }
     var t0 = performance.now(), dur = 800;
-    (function tick(t) {
-      var k = Math.min(1, (t - t0) / dur);
+    (function tick(ts) {
+      var k = Math.min(1, (ts - t0) / dur);
       el.textContent = n(from + (to - from) * (1 - Math.pow(1 - k, 3)));
       if (k < 1) requestAnimationFrame(tick);
     })(t0);
@@ -119,7 +134,7 @@
   function palette() {
     var dark = theme() === 'dark';
     return {
-      acc: dark ? '#529CCA' : '#2383E2',
+      acc: '#FF752A',
       green: dark ? '#4DAB9A' : '#0F7B5F',
       amber: dark ? '#D9A441' : '#C08A2E',
       purple: dark ? '#9A6DD7' : '#6940A5',
@@ -163,7 +178,7 @@
   function renderMoneyChart() {
     var P = palette();
     var paid = S.deals.filter(function (d) { return d.status === 'paid' && d.date; });
-    if (!paid.length) { drawChart('chMoney', 'money', 'Появится с первым поступлением'); return; }
+    if (!paid.length) { drawChart('chMoney', 'money', t('ch.moneyEmpty')); return; }
     var months = {};
     paid.forEach(function (d) {
       var k = String(d.date).slice(0, 7);
@@ -180,11 +195,11 @@
       },
     };
     drawChart('chMoney', 'money', '', {
-      aria: 'Столбчатый график поступлений по месяцам',
+      aria: t('ch.money'),
       chart: {
         type: 'bar',
         data: {
-          labels: keys.map(function (k) { return MON[Number(k.slice(5, 7)) - 1]; }),
+          labels: keys.map(function (k) { return t('months')[Number(k.slice(5, 7)) - 1]; }),
           datasets: [{
             data: keys.map(function (k) { return months[k]; }),
             backgroundColor: function (c) { return fade(c.chart.ctx, c.chart.chartArea, P.green, 'FF', '66'); },
@@ -198,27 +213,26 @@
 
   function renderSubsChart() {
     var P = palette();
-    if (S.subs.length < 2) { drawChart('chSubs', 'subs', 'Нужно два снимка, чтобы нарисовать рост'); return; }
+    if (S.subs.length < 2) { drawChart('chSubs', 'subs', t('ch.subsEmpty')); return; }
     var dates = [];
     S.subs.forEach(function (s) { if (dates.indexOf(s.date) < 0) dates.push(s.date); });
     dates.sort();
     var plats = [];
     S.subs.forEach(function (s) { if (plats.indexOf(s.platform) < 0) plats.push(s.platform); });
-    var colors = [P.acc, P.green, P.amber, P.purple];
+    var colors = [P.acc, P.green, P.purple, P.amber];
     var sets = plats.map(function (p, i) {
+      var col = colors[i % 4];
       return {
         label: p,
         data: dates.map(function (d) {
           var hit = S.subs.filter(function (s) { return s.platform === p && s.date === d; })[0];
           return hit ? Number(hit.count) || 0 : null;
         }),
-        spanGaps: true, borderColor: colors[i % 4],
-        backgroundColor: (function (col) {
-          return function (c) { return fade(c.chart.ctx, c.chart.chartArea, col, '2E', '00'); };
-        })(colors[i % 4]),
+        spanGaps: true, borderColor: col,
+        backgroundColor: function (c) { return fade(c.chart.ctx, c.chart.chartArea, col, '2E', '00'); },
         fill: true, borderDash: i % 2 ? [6, 4] : [],
         pointStyle: i % 2 ? 'rect' : 'circle',
-        pointBackgroundColor: colors[i % 4], pointRadius: 3.5, pointHoverRadius: 5.5,
+        pointBackgroundColor: col, pointRadius: 3.5, pointHoverRadius: 5.5,
         borderWidth: 2.2, tension: .32,
       };
     });
@@ -233,7 +247,7 @@
       y: { beginAtZero: true, grid: { color: P.grid, drawTicks: false }, border: { display: false }, ticks: tickCfg(P) },
     };
     drawChart('chSubs', 'subs', '', {
-      aria: 'Линейный график роста подписчиков по датам снимков',
+      aria: t('ch.subs'),
       chart: { type: 'line', data: { labels: dates.map(dmy), datasets: sets }, options: o },
     });
   }
@@ -241,14 +255,14 @@
   function renderRubricChart() {
     var P = palette();
     var withViews = S.posts.filter(function (p) { return Number(p.views) > 0; });
-    if (!withViews.length) { drawChart('chRubric', 'rubric', 'Появится, когда у публикаций будут просмотры'); return; }
+    if (!withViews.length) { drawChart('chRubric', 'rubric', t('ch.rubricEmpty')); return; }
     var rubs = list(S.settings.rubrics);
     if (!rubs.length) withViews.forEach(function (p) { if (p.rubric && rubs.indexOf(p.rubric) < 0) rubs.push(p.rubric); });
-    if (!rubs.length) { drawChart('chRubric', 'rubric', 'Задай рубрики в настройках'); return; }
-    var colors = [P.acc, P.green, P.amber, P.purple];
+    if (!rubs.length) { drawChart('chRubric', 'rubric', t('ch.noRubrics')); return; }
+    var colors = [P.acc, P.green, P.purple, P.amber];
     var o = base(P);
     o.indexAxis = 'y';
-    o.plugins.tooltip.callbacks = { label: function (c) { return n(c.parsed.x) + ' просмотров'; } };
+    o.plugins.tooltip.callbacks = { label: function (c) { return n(c.parsed.x) + ' ' + t('views'); } };
     o.scales = {
       x: {
         beginAtZero: true, grid: { color: P.grid, drawTicks: false }, border: { display: false },
@@ -257,7 +271,7 @@
       y: { grid: { display: false }, border: { display: false }, ticks: tickCfg(P) },
     };
     drawChart('chRubric', 'rubric', '', {
-      aria: 'Столбчатый график просмотров по рубрикам',
+      aria: t('ch.rubric'),
       chart: {
         type: 'bar',
         data: {
@@ -279,13 +293,12 @@
   // ─── блоки ─────────────────────────────────────────────────────────
   function renderOverview() {
     var title = (S.settings.title || '').trim();
-    $('ovTitle').textContent = title || 'Обзор';
+    $('ovTitle').textContent = title || t('nav.overview');
     $('ovSub').textContent = (S.settings.subtitle || '').trim();
     $('ovSub').style.display = S.settings.subtitle ? '' : 'none';
-    $('brandT').textContent = title || 'Дашборд';
-    $('brandIc').textContent = (title || 'Д').trim().charAt(0).toUpperCase();
-    $('crumb').textContent = title || 'Дашборд';
-    document.title = title || 'Дашборд';
+    $('brandT').textContent = title || 'Dark Fusion';
+    $('crumb').textContent = title || t('dashboard');
+    document.title = title ? title + ' · Dark Fusion' : 'Dark Fusion Dashboard';
 
     var paid = 0, work = 0, closed = 0;
     S.deals.forEach(function (d) {
@@ -294,7 +307,7 @@
     });
 
     countUp($('mPaid'), paid);
-    $('mPaidS').textContent = closed ? closed + ' ' + (closed === 1 ? 'сделка' : closed < 5 ? 'сделки' : 'сделок') : 'пока ничего';
+    $('mPaidS').textContent = closed ? closed + ' ' + plural(closed) : t('m.nothing');
     $('mWork').textContent = n(work);
     $('mPosts').textContent = S.posts.length;
 
@@ -304,7 +317,7 @@
     });
     var totalSubs = Object.keys(byPlat).reduce(function (a, k) { return a + byPlat[k]; }, 0);
     $('mSubs').textContent = S.subs.length ? n(totalSubs) : '—';
-    $('mSubsS').textContent = S.subs.length ? Object.keys(byPlat).join(' + ') : 'снимков нет';
+    $('mSubsS').textContent = S.subs.length ? Object.keys(byPlat).join(' + ') : t('m.noSnaps');
 
     // Блок цели рисуется только если цель задана — иначе его просто нет.
     var goal = Number(S.settings.goal) || 0;
@@ -314,10 +327,10 @@
       var dl = '';
       if (S.settings.deadline) {
         var days = Math.round((new Date(S.settings.deadline) - new Date(today())) / 864e5);
-        dl = days >= 0 ? 'Срок — ' + dmy(S.settings.deadline) : 'Срок прошёл';
+        dl = days >= 0 ? t('m.due') + ' ' + dmy(S.settings.deadline) : t('m.overdue');
       }
       $('goalBox').innerHTML = '<div class="hero" style="margin-bottom:13px"><div class="hero-top">'
-        + '<div><div class="big">' + money(paid) + '</div><div class="big-s">из ' + money(goal) + '</div></div>'
+        + '<div><div class="big">' + money(paid) + '</div><div class="big-s">' + t('m.of') + ' ' + money(goal) + '</div></div>'
         + '<span class="pct">' + (pct > 0 && pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%</span></div>'
         + '<div class="track"><i style="width:' + Math.min(100, pct) + '%"></i></div>'
         + '<div class="hero-n">' + esc(dl) + '</div></div>';
@@ -331,24 +344,24 @@
   function renderDeals() {
     var box = $('dealRows');
     if (!S.deals.length) {
-      box.innerHTML = '<tr><td colspan="5" class="empty">Ни одной сделки.</td></tr>';
+      box.innerHTML = '<tr><td colspan="5" class="empty">' + t('e.deals') + '</td></tr>';
       return;
     }
     var rows = S.deals.slice().sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : 1; });
     box.innerHTML = rows.map(function (d) {
       return '<tr><td>' + (d.url ? '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.client) + '</a>' : esc(d.client)) + '</td>'
         + '<td>' + esc(d.service || '') + '</td>'
-        + '<td><span class="tag ' + ST_CLS[d.status] + '">' + ST[d.status] + '</span></td>'
+        + '<td><span class="tag ' + ST_CLS[d.status] + '">' + t('st.' + d.status) + '</span></td>'
         + '<td class="tnum" style="font-size:12px">' + esc(dmy(d.date)) + '</td>'
         + '<td class="cell-a">' + (d.amount ? n(d.amount) : '—')
-        + ' <button class="del" data-del="deals" data-id="' + esc(d.id) + '" aria-label="удалить">&times;</button></td></tr>';
+        + ' <button class="del" data-del="deals" data-id="' + esc(d.id) + '" aria-label="' + t('del') + '">&times;</button></td></tr>';
     }).join('');
   }
 
   function renderSubs() {
     var box = $('subRows');
     if (!S.subs.length) {
-      box.innerHTML = '<tr><td colspan="3" class="empty">Снимков нет. Снимать в один и тот же день недели.</td></tr>';
+      box.innerHTML = '<tr><td colspan="3" class="empty">' + t('e.subs') + '</td></tr>';
       return;
     }
     var rows = S.subs.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
@@ -356,13 +369,13 @@
       return '<tr><td class="tnum" style="font-size:12px">' + esc(dmy(s.date)) + '</td>'
         + '<td>' + esc(s.platform) + '</td>'
         + '<td class="cell-a">' + n(s.count)
-        + ' <button class="del" data-del="subs" data-id="' + esc(s.id) + '" aria-label="удалить">&times;</button></td></tr>';
+        + ' <button class="del" data-del="subs" data-id="' + esc(s.id) + '" aria-label="' + t('del') + '">&times;</button></td></tr>';
     }).join('');
   }
 
   function renderPosts() {
     var box = $('postCards');
-    if (!S.posts.length) { box.innerHTML = '<div class="empty">Ни одной публикации.</div>'; return; }
+    if (!S.posts.length) { box.innerHTML = '<div class="empty">' + t('e.posts') + '</div>'; return; }
     var rubs = list(S.settings.rubrics);
     var rows = S.posts.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
     box.innerHTML = rows.map(function (p) {
@@ -371,22 +384,22 @@
         + (p.rubric ? '<span class="tag ' + TAG_CLS[(i < 0 ? 0 : i) % 4] + '">' + esc(p.rubric) + '</span>' : '')
         + '<div class="pcard-t">' + (p.url ? '<a href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.title) + '</a>' : esc(p.title)) + '</div>'
         + '<div class="pcard-m"><span>' + esc(p.platform || '') + '</span><span>·</span><span>' + esc(dmy(p.date)) + '</span>'
-        + (Number(p.views) ? '<span>·</span><span>' + n(p.views) + ' просм.</span>' : '')
-        + (Number(p.replies) ? '<span>·</span><span>' + n(p.replies) + ' откл.</span>' : '')
-        + '<button class="del" style="margin-left:auto" data-del="posts" data-id="' + esc(p.id) + '" aria-label="удалить">&times;</button></div></div>';
+        + (Number(p.views) ? '<span>·</span><span>' + n(p.views) + ' ' + t('f.views') + '</span>' : '')
+        + (Number(p.replies) ? '<span>·</span><span>' + n(p.replies) + ' ' + t('f.replies') + '</span>' : '')
+        + '<button class="del" style="margin-left:auto" data-del="posts" data-id="' + esc(p.id) + '" aria-label="' + t('del') + '">&times;</button></div></div>';
     }).join('');
   }
 
   function renderLog() {
     var box = $('logList');
-    if (!S.log.length) { box.innerHTML = '<div class="empty">Журнал пуст.</div>'; return; }
+    if (!S.log.length) { box.innerHTML = '<div class="empty">' + t('e.log') + '</div>'; return; }
     var rows = S.log.slice().sort(function (a, b) { return b.date < a.date ? -1 : 1; });
     box.innerHTML = rows.map(function (e) {
       return '<div class="entry"><div class="entry-h"><span class="entry-d">' + esc(dmy(e.date)) + '</span>'
-        + (e.minutes ? '<span class="entry-m">' + e.minutes + ' мин</span>' : '')
-        + '<button class="del" style="margin-left:auto" data-del="log" data-id="' + esc(e.id) + '" aria-label="удалить">&times;</button></div>'
+        + (e.minutes ? '<span class="entry-m">' + e.minutes + ' ' + t('min') + '</span>' : '')
+        + '<button class="del" style="margin-left:auto" data-del="log" data-id="' + esc(e.id) + '" aria-label="' + t('del') + '">&times;</button></div>'
         + '<ul>' + (e.done || []).map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul>'
-        + (e.fail ? '<div class="entry-f"><b>Провал:</b> ' + esc(e.fail) + '</div>' : '')
+        + (e.fail ? '<div class="entry-f"><b>' + t('fail') + '</b> ' + esc(e.fail) + '</div>' : '')
         + '</div>';
     }).join('');
   }
@@ -394,14 +407,22 @@
   function fillSelects() {
     var plats = list(S.settings.platforms);
     var rubs = list(S.settings.rubrics);
-    function opts(arr, hint) {
+    function opts(arr) {
       return arr.length
         ? arr.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v) + '</option>'; }).join('')
-        : '<option value="">' + hint + '</option>';
+        : '<option value="">' + t('setHint') + '</option>';
     }
-    $('postPlat').innerHTML = opts(plats, 'задай в настройках');
-    $('subPlat').innerHTML = opts(plats, 'задай в настройках');
-    $('postRub').innerHTML = opts(rubs, 'задай в настройках');
+    // Выбранное не теряем при перерисовке — иначе смена языка сбрасывала бы форму.
+    ['postPlat', 'subPlat', 'postRub'].forEach(function (id, i) {
+      var el = $(id), prev = el.value;
+      el.innerHTML = opts(i === 2 ? rubs : plats);
+      if (prev) el.value = prev;
+    });
+    var ds = $('dealStatus'), prevS = ds.value;
+    ds.innerHTML = STATUSES.map(function (s) {
+      return '<option value="' + s + '"' + (s === 'paid' ? ' selected' : '') + '>' + t('st.' + s) + '</option>';
+    }).join('');
+    if (prevS) ds.value = prevS;
   }
 
   function render() {
@@ -416,19 +437,46 @@
     fillSelects();
   }
 
-  // ─── запуск ────────────────────────────────────────────────────────
-  function applyTheme(t) {
-    document.documentElement.dataset.theme = t;
-    $('themeL').textContent = t === 'dark' ? 'Светлая тема' : 'Тёмная тема';
-    try { localStorage.setItem('theme', t); } catch (e) { /* приватный режим — просто не запоминаем */ }
+  // ─── язык и тема ───────────────────────────────────────────────────
+  function applyLang(lang) {
+    L = window.I18N[lang] ? lang : 'ru';
+    document.documentElement.lang = L;
+    try { localStorage.setItem('lang', L); } catch (e) { /* приватный режим — просто не запоминаем */ }
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'), function (el) {
+      el.textContent = t(el.dataset.i18n);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-ph]'), function (el) {
+      el.placeholder = t(el.dataset.ph);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.lang button'), function (b) {
+      b.classList.toggle('on', b.dataset.lang === L);
+    });
+    $('themeL').textContent = theme() === 'dark' ? t('themeLight') : t('themeDark');
+    var on = document.querySelector('.nav-i.on');
+    if (on) $('barT').textContent = t('nav.' + on.dataset.v);
+    if (S) render();
+  }
+
+  function applyTheme(th) {
+    document.documentElement.dataset.theme = th;
+    $('themeL').textContent = th === 'dark' ? t('themeLight') : t('themeDark');
+    try { localStorage.setItem('theme', th); } catch (e) { /* приватный режим */ }
   }
 
   function boot() {
     try { applyTheme(localStorage.getItem('theme') || 'light'); } catch (e) { applyTheme('light'); }
+    var saved = 'ru';
+    try { saved = localStorage.getItem('lang') || 'ru'; } catch (e) { /* приватный режим */ }
 
     $('themeT').addEventListener('click', function () {
       applyTheme(theme() === 'dark' ? 'light' : 'dark');
       renderMoneyChart(); renderSubsChart(); renderRubricChart();
+    });
+
+    document.querySelector('.lang').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-lang]');
+      if (b) applyLang(b.dataset.lang);
     });
 
     document.querySelector('nav').addEventListener('click', function (e) {
@@ -436,7 +484,7 @@
       if (!b) return;
       Array.prototype.forEach.call(document.querySelectorAll('.nav-i'), function (x) { x.classList.toggle('on', x === b); });
       Array.prototype.forEach.call(document.querySelectorAll('.view'), function (v) { v.classList.toggle('on', v.id === 'v-' + b.dataset.v); });
-      $('barT').textContent = b.textContent.trim().replace(/\s+\d+$/, '');
+      $('barT').textContent = t('nav.' + b.dataset.v);
     });
 
     Array.prototype.forEach.call(document.querySelectorAll('input[type=date]'), function (el) { el.value = today(); });
@@ -501,8 +549,8 @@
       save();
     });
 
-    render();
-    flag('загружено');
+    applyLang(saved);
+    flag(t('loaded'));
   }
 
   load();
