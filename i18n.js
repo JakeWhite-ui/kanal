@@ -46,7 +46,7 @@ window.I18N = {
     'journal.sub': 'Провал дня заполнять всегда — без него через месяц не понять, что ломалось.',
     'subs.h': 'Снимки подписчиков',
 
-    'f.client': 'клиент', 'f.amount': 'сумма', 'f.service': 'услуга', 'f.link': 'https://ссылка',
+    'f.client': 'клиент', 'f.amount': 'вся сумма', 'f.paid': 'получено', 'f.service': 'услуга', 'f.link': 'https://ссылка',
     'f.title': 'заголовок', 'f.views': 'просм.', 'f.replies': 'откл.', 'f.subs': 'подписчиков',
     'f.minutes': 'минут в работе', 'f.done': 'Сделано — по одному пункту на строку', 'f.fail': 'Провал дня',
     'f.add': 'Добавить', 'f.record': 'Записать', 'f.logDay': 'Записать день',
@@ -137,7 +137,7 @@ window.I18N = {
     'journal.sub': "Always fill in the day's failure — without it you won't know what broke.",
     'subs.h': 'Follower snapshots',
 
-    'f.client': 'client', 'f.amount': 'amount', 'f.service': 'service', 'f.link': 'https://link',
+    'f.client': 'client', 'f.amount': 'total', 'f.paid': 'received', 'f.service': 'service', 'f.link': 'https://link',
     'f.title': 'title', 'f.views': 'views', 'f.replies': 'replies', 'f.subs': 'followers',
     'f.minutes': 'minutes worked', 'f.done': 'Done — one item per line', 'f.fail': 'Failure of the day',
     'f.add': 'Add', 'f.record': 'Record', 'f.logDay': 'Log the day',

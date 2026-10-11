@@ -44,6 +44,12 @@
   var list = function (str) {
     return String(str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   };
+  // Сколько по сделке реально получено. Старые записи поля paid не знают:
+  // там статус «получено» означал, что пришла вся сумма.
+  var got = function (d) {
+    if (d.paid != null) return Number(d.paid) || 0;
+    return d.status === 'paid' ? Number(d.amount) || 0 : 0;
+  };
   // Русский требует трёх форм, английскому хватает двух — обе ветки живут в словаре.
   var plural = function (c) {
     if (L !== 'ru') return c === 1 ? t('deal1') : t('deal2');
@@ -116,6 +122,10 @@
 
     [d.deals, d.subs, d.posts, d.log].forEach(function (arr) {
       arr.forEach(function (it) { if (!it.id) it.id = uid(); });
+    });
+    // До появления частичной оплаты «получено» значило всю сумму сразу.
+    d.deals.forEach(function (x) {
+      if (x.paid == null) x.paid = x.status === 'paid' ? Number(x.amount) || 0 : 0;
     });
     return d;
   }
@@ -211,12 +221,12 @@
 
   function renderMoneyChart() {
     var P = palette();
-    var paid = S.deals.filter(function (d) { return d.status === 'paid' && d.date; });
+    var paid = S.deals.filter(function (d) { return got(d) > 0 && d.date; });
     if (!paid.length) { drawChart('chMoney', 'money', t('ch.moneyEmpty')); return; }
     var months = {};
     paid.forEach(function (d) {
       var k = String(d.date).slice(0, 7);
-      months[k] = (months[k] || 0) + (Number(d.amount) || 0);
+      months[k] = (months[k] || 0) + got(d);
     });
     var keys = Object.keys(months).sort();
     var o = base(P);
@@ -334,10 +344,14 @@
     $('crumb').textContent = title || t('dashboard');
     document.title = title ? title + ' · Dark Fusion' : 'Dark Fusion Dashboard';
 
+    // Сделка живёт одной строкой: amount — вся стоимость, paid — сколько пришло.
+    // Предоплата 50 % не плодит второй сделки, поэтому в списке нет дублей.
     var paid = 0, work = 0, closed = 0;
     S.deals.forEach(function (d) {
-      var a = Number(d.amount) || 0;
-      if (d.status === 'paid') { paid += a; closed++; } else work += a;
+      var a = Number(d.amount) || 0, p = got(d);
+      paid += p;
+      work += Math.max(0, a - p);
+      if (p > 0) closed++;
     });
 
     countUp($('mPaid'), paid);
@@ -383,11 +397,14 @@
     }
     var rows = S.deals.slice().sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : 1; });
     box.innerHTML = rows.map(function (d) {
+      var a = Number(d.amount) || 0, p = got(d);
+      // Частичную оплату показываем дробью: видно и что пришло, и сколько висит.
+      var sum = a ? (p > 0 && p < a ? n(p) + ' / ' + n(a) : n(a)) : (p ? n(p) : '—');
       return '<tr><td>' + (d.url ? '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.client) + '</a>' : esc(d.client)) + '</td>'
         + '<td>' + esc(d.service || '') + '</td>'
         + '<td><span class="tag ' + ST_CLS[d.status] + '">' + t('st.' + d.status) + '</span></td>'
         + '<td class="tnum" style="font-size:12px">' + esc(dmy(d.date)) + '</td>'
-        + '<td class="cell-a">' + (d.amount ? n(d.amount) : '—')
+        + '<td class="cell-a">' + sum
         + ' <button class="del" data-del="deals" data-id="' + esc(d.id) + '" aria-label="' + t('del') + '">&times;</button></td></tr>';
     }).join('');
   }
@@ -593,8 +610,12 @@
     }
 
     hook('fDeal', function (f) {
+      var amount = Number(f.get('amount')) || 0;
+      var raw = String(f.get('paid') || '').trim();
+      // Поле «получено» пустое — значит смотрим на статус: оплачено целиком или ничего.
+      var paid = raw === '' ? (f.get('status') === 'paid' ? amount : 0) : Number(raw) || 0;
       S.deals.push({
-        id: uid(), client: f.get('client'), amount: Number(f.get('amount')) || 0,
+        id: uid(), client: f.get('client'), amount: amount, paid: paid,
         status: f.get('status'), date: f.get('date'), service: f.get('service'), url: f.get('url'),
       });
     });
