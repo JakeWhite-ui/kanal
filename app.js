@@ -59,11 +59,31 @@
     el.className = 'saved' + (kind ? ' ' + kind : '');
   }
 
+  // Два режима. С сервером (node server.js) источник правды — data.json на диске.
+  // Без сервера (GitHub Pages, открытый файл) данные живут в браузере и никуда не уходят:
+  // выкладывать на Pages можно только код, цифры остаются на устройстве.
+  var LOCAL_KEY = 'kanalData';
+  var standalone = false;
+
+  function blank() {
+    return { meta: { version: 3 }, settings: {}, profile: {}, deals: [], subs: [], posts: [], log: [] };
+  }
+
   function load() {
-    fetch('/api/data', { cache: 'no-store' })
+    fetch('api/data', { cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (d) { S = migrate(d); boot(); })
-      .catch(function (e) { flag(t('readErr') + e.message, 'err'); });
+      .catch(function () {
+        standalone = true;
+        var raw = null;
+        try { raw = localStorage.getItem(LOCAL_KEY); } catch (e) { /* приватный режим — читать нечем */ }
+        var parsed = blank();
+        if (raw) {
+          try { parsed = JSON.parse(raw); } catch (e) { flag(t('localBroken'), 'err'); }
+        }
+        S = migrate(parsed);
+        boot();
+      });
   }
 
   // Файл мог быть любой из прошлых версий — достраиваем недостающее, ничего не теряя.
@@ -101,7 +121,19 @@
   }
 
   function push() {
-    return fetch('/api/data', {
+    if (standalone) {
+      S.meta = S.meta || {};
+      S.meta.updated = today();
+      return new Promise(function (res, rej) {
+        try {
+          localStorage.setItem(LOCAL_KEY, JSON.stringify(S));
+          res({ ok: true, updated: S.meta.updated });
+        } catch (e) {
+          rej(new Error(t('localFull')));
+        }
+      });
+    }
+    return fetch('api/data', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S),
     }).then(function (r) {
       return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
@@ -120,7 +152,9 @@
 
   function countUp(el, to) {
     var from = Number(String(el.textContent).replace(/[^\d]/g, '')) || 0;
-    if (from === to) { el.textContent = n(to); return; }
+    // В скрытой вкладке requestAnimationFrame не вызывается — анимация замерла бы
+    // на начальном значении и показывала неверную сумму. Там ставим итог сразу.
+    if (from === to || document.hidden) { el.textContent = n(to); return; }
     var t0 = performance.now(), dur = 800;
     (function tick(ts) {
       var k = Math.min(1, (ts - t0) / dur);
@@ -435,6 +469,44 @@
     renderPosts();
     renderLog();
     fillSelects();
+    var hint = $('modeHint');
+    if (hint) hint.textContent = t(standalone ? 'set.modeLocal' : 'set.modeServer');
+  }
+
+  // ─── перенос данных между устройствами ─────────────────────────────
+  function exportData() {
+    var blob = new Blob([JSON.stringify(S, null, 2) + '\n'], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'dashboard-' + today() + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    flag(t('exported'), 'ok');
+  }
+
+  function importData(file) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      var parsed;
+      try {
+        parsed = JSON.parse(fr.result);
+      } catch (e) {
+        return flag(t('importBad'), 'err');
+      }
+      // Та же проверка формы, что на сервере: кривой файл не должен затирать рабочие данные.
+      if (!parsed || typeof parsed !== 'object' || !parsed.settings || !Array.isArray(parsed.deals)) {
+        return flag(t('importBad'), 'err');
+      }
+      S = migrate(parsed);
+      Array.prototype.forEach.call(document.querySelectorAll('[data-s]'), function (el) {
+        el.value = S.settings[el.dataset.s] == null ? '' : S.settings[el.dataset.s];
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-p]'), function (el) {
+        el.value = S.profile[el.dataset.p] == null ? '' : S.profile[el.dataset.p];
+      });
+      save();
+    };
+    fr.readAsText(file);
   }
 
   // ─── язык и тема ───────────────────────────────────────────────────
@@ -488,6 +560,13 @@
     });
 
     Array.prototype.forEach.call(document.querySelectorAll('input[type=date]'), function (el) { el.value = today(); });
+
+    $('btnExport').addEventListener('click', exportData);
+    $('btnImport').addEventListener('click', function () { $('fileImport').click(); });
+    $('fileImport').addEventListener('change', function (e) {
+      if (e.target.files[0]) importData(e.target.files[0]);
+      e.target.value = '';
+    });
 
     Array.prototype.forEach.call(document.querySelectorAll('[data-s]'), function (el) {
       el.value = S.settings[el.dataset.s] == null ? '' : S.settings[el.dataset.s];
