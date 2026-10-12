@@ -151,7 +151,7 @@
   var standalone = false;
 
   function blank() {
-    return { meta: { version: 4 }, settings: {}, profile: {}, deals: [], subs: [], posts: [], log: [], notes: [] };
+    return { meta: { version: 5 }, settings: {}, profile: {}, deals: [], subs: [], posts: [], log: [], notes: [], moves: [] };
   }
 
   function load() {
@@ -180,6 +180,9 @@
     d.posts = d.posts || [];
     d.log = d.log || [];
     d.notes = d.notes || [];
+    // Движения сделок по этапам. Пустой у всех, кто обновился с прошлой версии:
+    // восстановить историю задним числом нельзя, она копится с первого переноса.
+    d.moves = d.moves || [];
 
     if (d.goal) {
       if (d.settings.goal === undefined && d.goal.target) d.settings.goal = d.goal.target;
@@ -200,7 +203,7 @@
     });
     d.subs.forEach(function (s) { if (OLD_PLAT[s.platform]) s.platform = OLD_PLAT[s.platform]; });
 
-    [d.deals, d.subs, d.posts, d.log, d.notes].forEach(function (arr) {
+    [d.deals, d.subs, d.posts, d.log, d.notes, d.moves].forEach(function (arr) {
       arr.forEach(function (it) { if (!it.id) it.id = uid(); });
     });
     // До появления частичной оплаты «получено» значило всю сумму сразу.
@@ -274,17 +277,25 @@
 
   // ─── графики ───────────────────────────────────────────────────────
   function theme() { return document.documentElement.dataset.theme; }
+  // Цвета берём из CSS-переменных, а не дублируем в JS: тема переключается в одном
+  // месте, и графики едут за ней сами. Переменные не анимируются, поэтому читаются
+  // честно даже в скрытой вкладке, где CSS-переходы заморожены.
+  function cssVar(name, fallback) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
   function palette() {
     var dark = theme() === 'dark';
     return {
-      acc: '#FF752A',
-      green: dark ? '#4DAB9A' : '#0F7B5F',
-      amber: dark ? '#D9A441' : '#C08A2E',
-      purple: dark ? '#9A6DD7' : '#6940A5',
-      blue: dark ? '#6B9BD8' : '#2B6CB0',
+      acc: cssVar('--acc', '#8B5CF6'),
+      acc2: cssVar('--acc-2', '#3B82F6'),
+      green: cssVar('--green', '#34D399'),
+      amber: cssVar('--amber', '#FBBF24'),
+      purple: cssVar('--purple', '#A78BFA'),
+      blue: cssVar('--acc-2', '#3B82F6'),
       grid: dark ? 'rgba(255,255,255,.07)' : 'rgba(15,15,15,.07)',
-      tick: dark ? '#78776F' : '#A5A199',
-      tipBg: dark ? '#2C2C2C' : '#37352F',
+      tick: dark ? '#7E8396' : '#A5A199',
+      tipBg: dark ? 'rgba(18,18,30,.94)' : '#37352F',
     };
   }
   function fade(ctx, area, hex, a1, a2) {
@@ -555,9 +566,13 @@
         var days = Math.round((new Date(S.settings.deadline) - new Date(today())) / 864e5);
         dl = days >= 0 ? t('m.due') + ' ' + dmy(S.settings.deadline) : t('m.overdue');
       }
+      var pctTxt = (pct > 0 && pct < 10 ? pct.toFixed(1) : String(Math.round(pct)));
+      if (L === 'ru') pctTxt = pctTxt.replace('.', ',');
       $('goalBox').innerHTML = '<div class="hero" style="margin-bottom:13px"><div class="hero-top">'
-        + '<div><div class="big">' + money(paid) + '</div><div class="big-s">' + t('m.of') + ' ' + money(goal) + '</div></div>'
-        + '<span class="pct">' + (pct > 0 && pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%</span></div>'
+        + '<div><div class="big grad">' + esc(money(paid)) + '</div>'
+        + '<div class="big-s">' + esc(t('m.of') + ' ' + money(goal)) + '</div></div>'
+        + '<div class="ring-wrap">' + ring(pct, 104, 9)
+        + '<span class="ring-t">' + pctTxt + ' %</span></div></div>'
         + '<div class="track"><i style="width:' + Math.min(100, pct) + '%"></i></div>'
         + '<div class="hero-n">' + esc(dl) + '</div></div>';
     }
@@ -740,6 +755,12 @@
         return;
       }
 
+      // Запись движения — до смены статуса, иначе «откуда» уже потеряно.
+      // Время в ISO: по нему строится аудит-лента и движения за неделю.
+      S.moves.push({
+        id: uid(), deal: deal.id, client: deal.client,
+        from: deal.status, to: to, date: today(), at: new Date().toISOString(),
+      });
       deal.status = to;
       deal.stage_date = today();
       // «Оплачено» означает всю сумму: иначе касса разошлась бы с воронкой.
@@ -777,6 +798,26 @@
       $('rCycleS').textContent = t('rep.cycleDays');
     }
 
+    // Движений за последние 7 дней. Счёт идёт с первого переноса: историю до
+    // появления журнала восстановить неоткуда, и выдумывать её нельзя.
+    var weekAgo = isoD(new Date(new Date(today()).getTime() - 7 * 864e5));
+    countUp($('rThru'), S.moves.filter(function (mv) { return mv.date >= weekAgo; }).length);
+
+    var withAmount = S.deals.filter(function (d) { return (Number(d.amount) || 0) > 0; });
+    var ticket = withAmount.length
+      ? Math.round(withAmount.reduce(function (a, d) { return a + Number(d.amount); }, 0) / withAmount.length) : 0;
+    countUp($('rTicket'), ticket);
+    $('rTicketS').textContent = withAmount.length ? t('rep.ticketS') : t('rep.noData');
+
+    var dl = S.settings.deadline;
+    var left = dl ? daysBetween(today(), dl) : null;
+    if (left === null) { $('rLeft').textContent = '—'; $('rLeft').dataset.v = ''; $('rLeftS').textContent = t('rep.noData'); }
+    else if (left < 0) { $('rLeft').textContent = '—'; $('rLeft').dataset.v = ''; $('rLeftS').textContent = t('rep.overdue'); }
+    else { countUp($('rLeft'), left); $('rLeftS').textContent = t('rep.leftS') + ' ' + dmy(dl); }
+
+    renderConvBars();
+    renderMoveLog();
+
     var box = $('boardRows');
     var cs = clients().filter(function (c) { return c.deals > 0; });
     if (!cs.length) { box.innerHTML = '<tr><td colspan="3" class="empty">' + esc(t('e.deals')) + '</td></tr>'; return; }
@@ -787,8 +828,64 @@
     }).join('');
   }
 
+  // Доля сделок, дошедших до этапа и дальше. Считается по текущему положению:
+  // сделка в «в работе» засчитана и лиду, и КП, и счёту — она их прошла.
+  function renderConvBars() {
+    var box = $('convBars');
+    if (!S.deals.length) { box.innerHTML = '<div class="empty">' + esc(t('e.deals')) + '</div>'; return; }
+    var total = S.deals.length;
+    box.innerHTML = '<div class="conv-hint">' + esc(t('rep.convHint')) + '</div>'
+      + STATUSES.map(function (st, i) {
+        var reached = S.deals.filter(function (d) { return STATUSES.indexOf(d.status) >= i; }).length;
+        var pct = (reached / total) * 100;
+        return '<div class="conv-row"><span class="conv-n">' + esc(t('st.' + st)) + '</span>'
+          + '<span class="conv-bar"><i style="width:' + pct.toFixed(1) + '%"></i></span>'
+          + '<span class="conv-v">' + reached + ' · ' + Math.round(pct) + ' %</span></div>';
+      }).join('');
+  }
+
+  var MOVE_LIMIT = 20;
+
+  function renderMoveLog() {
+    var box = $('moveLog');
+    if (!S.moves.length) { box.innerHTML = '<div class="empty">' + esc(t('rep.noMoves')) + '</div>'; return; }
+    var all = S.moves.slice().sort(function (a, b) { return (b.at || '') < (a.at || '') ? -1 : 1; });
+    var rows = all.slice(0, MOVE_LIMIT);
+    box.innerHTML = rows.map(function (mv) {
+      var time = mv.at ? String(mv.at).slice(11, 16) : '';
+      return '<div class="mv"><span class="mv-t">' + esc(dmy(mv.date)) + (time ? ' ' + time : '') + '</span>'
+        + '<span class="mv-c">' + esc(mv.client) + '</span>'
+        + '<span class="tag ' + ST_CLS[mv.from] + '">' + esc(t('st.' + mv.from)) + '</span>'
+        + '<span class="mv-a">→</span>'
+        + '<span class="tag ' + ST_CLS[mv.to] + '">' + esc(t('st.' + mv.to)) + '</span></div>';
+    }).join('')
+      // Обрезку показываем явно: молча показанные 20 из 60 читались бы как «всё».
+      + (all.length > MOVE_LIMIT
+        ? '<div class="empty">' + MOVE_LIMIT + ' ' + esc(t('m.of')) + ' ' + all.length + '</div>' : '');
+  }
+
   // ─── клиенты ───────────────────────────────────────────────────────
   var selClient = null;
+
+  // Здоровье клиента по дням без активности. Пороги те же, что у панели внимания,
+  // чтобы красный на карточке и строка в «требуют внимания» не расходились.
+  function health(c) {
+    if (!c.last) return { k: 'warn', pct: 50 };
+    var idle = Math.max(0, daysBetween(c.last, today()));
+    if (idle > RISK_DAYS) return { k: 'risk', pct: 18, idle: idle };
+    if (idle > 3) return { k: 'warn', pct: 55, idle: idle };
+    return { k: 'ok', pct: 92, idle: idle };
+  }
+
+  function ring(pct, size, stroke, cls) {
+    var r = (size - stroke) / 2;
+    var c = 2 * Math.PI * r;
+    var off = c * (1 - Math.max(0, Math.min(100, pct)) / 100);
+    return '<svg class="ring ' + (cls || '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true">'
+      + '<circle class="bg" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" stroke-width="' + stroke + '"/>'
+      + '<circle class="fg" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" stroke-width="' + stroke + '"'
+      + ' stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '"/></svg>';
+  }
 
   function renderClients() {
     var q = ($('clSearch').value || '').trim().toLowerCase();
@@ -805,6 +902,7 @@
     if (!stillThere) selClient = shown[0].name;
     box.innerHTML = shown.map(function (c) {
       return '<button class="cl-i' + (c.name === selClient ? ' on' : '') + '" data-cl="' + esc(c.name) + '">'
+        + '<span class="dot h-' + health(c).k + '"></span>'
         + '<span class="cl-i-n">' + esc(c.name) + '</span>'
         + '<span class="cl-i-s">' + n(c.got) + '</span></button>';
     }).join('');
@@ -821,7 +919,12 @@
     var notes = S.notes.filter(function (nt) { return nt.client === c.name; })
       .sort(function (a, b) { return b.date < a.date ? -1 : 1; });
 
+    var h = health(c);
     box.innerHTML = '<h2 style="margin:0 0 4px">' + esc(c.name) + '</h2>'
+      + '<div class="cl-health h-' + h.k + '">' + ring(h.pct, 40, 5, 'h-ring')
+      + '<div><div class="cl-sum-k">' + esc(t('cl.health')) + '</div>'
+      + '<div class="cl-h-v">' + esc(t('cl.h' + h.k.charAt(0).toUpperCase() + h.k.slice(1)))
+      + (h.idle === undefined ? '' : ' · ' + h.idle + ' ' + esc(t('days'))) + '</div></div></div>'
       + '<div class="cl-sums">'
       + '<div><div class="cl-sum-k">' + esc(t('cl.got')) + '</div><div class="cl-sum-v">' + esc(money(c.got)) + '</div></div>'
       + '<div><div class="cl-sum-k">' + esc(t('cl.open')) + '</div><div class="cl-sum-v">' + esc(money(c.open)) + '</div></div>'

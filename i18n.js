@@ -121,6 +121,15 @@ window.I18N = {
     'rep.cycle': 'Средний цикл', 'rep.cycleDays': 'дн. от касания до оплаты',
     'rep.win': 'Win rate', 'rep.winS': 'оплачено из всех сделок',
     'rep.board': 'Клиенты по выручке', 'rep.noData': 'нет данных',
+    'rep.thru': 'Движений в неделю', 'rep.thruS': 'сделок меняет этап',
+    'rep.ticket': 'Средний чек', 'rep.ticketS': 'по сделкам с суммой',
+    'rep.left': 'Дней до срока', 'rep.leftS': 'до', 'rep.overdue': 'срок прошёл',
+    'rep.conv': 'Конверсия по этапам', 'rep.convHint': 'доля сделок, дошедших до этапа',
+    'rep.moves': 'Движение сделок',
+    'rep.noMoves': 'Пока ничего не двигалось. Перетащи карточку в воронке — здесь появится запись.',
+    'rep.moved': 'из', 'rep.movedTo': 'в',
+
+    'cl.health': 'Здоровье', 'cl.hOk': 'в движении', 'cl.hWarn': 'пора трогать', 'cl.hRisk': 'висит',
 
     'cl.sub': 'Карточка клиента и всё, что с ним происходило.',
     'cl.search': 'поиск по клиенту', 'cl.none': 'Никого не нашлось.',
@@ -251,6 +260,15 @@ window.I18N = {
     'rep.cycle': 'Avg cycle', 'rep.cycleDays': 'days from touch to payment',
     'rep.win': 'Win rate', 'rep.winS': 'paid out of all deals',
     'rep.board': 'Clients by revenue', 'rep.noData': 'no data',
+    'rep.thru': 'Moves per week', 'rep.thruS': 'deals changing stage',
+    'rep.ticket': 'Avg ticket', 'rep.ticketS': 'across deals with an amount',
+    'rep.left': 'Days to deadline', 'rep.leftS': 'until', 'rep.overdue': 'past due',
+    'rep.conv': 'Conversion by stage', 'rep.convHint': 'share of deals that reached the stage',
+    'rep.moves': 'Deal movements',
+    'rep.noMoves': 'Nothing has moved yet. Drag a card in the pipeline and an entry appears here.',
+    'rep.moved': 'from', 'rep.movedTo': 'to',
+
+    'cl.health': 'Health', 'cl.hOk': 'moving', 'cl.hWarn': 'touch it', 'cl.hRisk': 'stalled',
 
     'cl.sub': 'The client card and everything that happened with them.',
     'cl.search': 'search by client', 'cl.none': 'Nobody found.',
