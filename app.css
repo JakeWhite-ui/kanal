@@ -14,22 +14,25 @@
   --dim:#B0ACA3;
   --line:#EAE9E5;
   --line-2:#DEDCD6;
-  --acc:#7C3AED;
-  --acc-soft:#F1ECFE;
+  --acc:#FF752A;
+  --acc-soft:#FFEFE4;
   --green:#0F7B5F;
   --green-soft:#E3F3EE;
   --amber:#A66B00;
   --amber-soft:#FBF0DD;
   --red:#C0392B;
   --red-soft:#FBEBE9;
-  --purple:#6940A5;
-  --purple-soft:#F0EBF7;
+  --purple:#0E7490;
+  --purple-soft:#E2F3F7;
   --shadow:0 1px 2px rgba(15,15,15,.05),0 4px 12px -4px rgba(15,15,15,.07);
   --shadow-lg:0 2px 4px rgba(15,15,15,.06),0 12px 32px -8px rgba(15,15,15,.12);
   --r:7px;
   --r-lg:11px;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
-  --acc-2:#2B6CB0;
+  --acc-2:#D97706;
+  /* Цвет только для графиков: этап «в работе» не должен слиться с янтарной
+     предоплатой, а брать для него фирменный оранжевый нельзя — он у акцента. */
+  --blue:#2B6CB0;
   /* В светлой теме стекла нет: по белому фону размытие даёт грязь, а не глубину. */
   --glass:none;
   --hi:transparent;
@@ -38,28 +41,31 @@
    под ними лежит слой размытых градиентных пятен (.orbs), и именно он даёт цвет.
    Поэтому --card и --side здесь в rgba, а не в hex. */
 html[data-theme="dark"]{
-  --bg:#07070F;
+  --bg:#0A0A0C;
   --side:rgba(255,255,255,.028);
   --hover:rgba(255,255,255,.06);
   --active:rgba(255,255,255,.10);
   --card:rgba(255,255,255,.04);
-  --ink:#F2F3F7;
-  --ink-2:#C5C8D6;
-  --muted:#8E93A8;
-  --dim:#5E6377;
+  --ink:#F4F2F0;
+  --ink-2:#CFC9C3;
+  --muted:#968F87;
+  --dim:#67615B;
   --line:rgba(255,255,255,.10);
   --line-2:rgba(255,255,255,.19);
-  --acc:#8B5CF6;
-  --acc-2:#3B82F6;
-  --acc-soft:rgba(139,92,246,.16);
+  --acc:#FF752A;
+  --acc-2:#FFB13D;
+  --blue:#5B9BD5;
+  --acc-soft:rgba(255,117,42,.16);
   --green:#34D399;
   --green-soft:rgba(52,211,153,.14);
-  --amber:#FBBF24;
-  --amber-soft:rgba(251,191,36,.14);
+  --amber:#FFC247;
+  --amber-soft:rgba(255,194,71,.14);
   --red:#FB7185;
   --red-soft:rgba(251,113,133,.14);
-  --purple:#A78BFA;
-  --purple-soft:rgba(167,139,250,.16);
+  /* Для этапа «КП отправлено» нужен цвет, не спорящий с оранжевым акцентом.
+     Холодная бирюза — единственное, что читается рядом с ним и не тянет одеяло. */
+  --purple:#45B0C9;
+  --purple-soft:rgba(69,176,201,.15);
   --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -8px rgba(0,0,0,.6);
   --shadow-lg:0 2px 6px rgba(0,0,0,.45),0 20px 48px -12px rgba(0,0,0,.7);
   --glass:blur(22px) saturate(1.5);
@@ -282,9 +288,11 @@ tr:hover .del,.card:hover .del,.entry:hover .del{opacity:1}
    грязно-серым, потому что размывать было бы нечего. */
 .orbs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;contain:strict}
 .orbs i{position:absolute;display:block;border-radius:50%;filter:blur(90px);opacity:.5}
-.orb1{width:460px;height:460px;top:-130px;left:-90px;background:radial-gradient(circle,#7C3AED,transparent 70%)}
-.orb2{width:520px;height:520px;top:18%;right:-180px;background:radial-gradient(circle,#3B82F6,transparent 70%);opacity:.38}
-.orb3{width:420px;height:420px;bottom:-150px;left:28%;background:radial-gradient(circle,#6D28D9,transparent 70%);opacity:.32}
+/* Пятна приглушены сильнее, чем были холодные: оранжевый на чёрном набирает
+   яркость быстрее синего, и на прежней непрозрачности фон читался как закат. */
+.orb1{width:460px;height:460px;top:-130px;left:-90px;background:radial-gradient(circle,#FF752A,transparent 70%);opacity:.26}
+.orb2{width:520px;height:520px;top:18%;right:-180px;background:radial-gradient(circle,#FF9A3D,transparent 70%);opacity:.18}
+.orb3{width:420px;height:420px;bottom:-150px;left:28%;background:radial-gradient(circle,#C2410C,transparent 70%);opacity:.22}
 /* В светлой теме пятна гасим: по белому они читаются как типографский брак. */
 html[data-theme="light"] .orbs{opacity:.12}
 /* Контент обязан лежать выше слоя пятен, иначе они перекроют интерфейс. */
@@ -302,7 +310,7 @@ html[data-theme="light"] .orbs{opacity:.12}
 }
 .card.lift:hover,.pcard:hover,.dcard:hover{border-color:var(--line-2);box-shadow:var(--shadow-lg)}
 html[data-theme="dark"] .card.lift:hover,
-html[data-theme="dark"] .dcard:hover{box-shadow:var(--shadow-lg),0 0 0 1px rgba(139,92,246,.28)}
+html[data-theme="dark"] .dcard:hover{box-shadow:var(--shadow-lg),0 0 0 1px rgba(255,117,42,.30)}
 .card,.hero{border-radius:16px}
 .side,.bar{backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass)}
 

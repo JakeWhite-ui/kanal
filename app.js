@@ -287,12 +287,12 @@
   function palette() {
     var dark = theme() === 'dark';
     return {
-      acc: cssVar('--acc', '#8B5CF6'),
-      acc2: cssVar('--acc-2', '#3B82F6'),
+      acc: cssVar('--acc', '#FF752A'),
+      acc2: cssVar('--acc-2', '#FFB13D'),
       green: cssVar('--green', '#34D399'),
       amber: cssVar('--amber', '#FBBF24'),
       purple: cssVar('--purple', '#A78BFA'),
-      blue: cssVar('--acc-2', '#3B82F6'),
+      blue: cssVar('--blue', '#5B9BD5'),
       grid: dark ? 'rgba(255,255,255,.07)' : 'rgba(15,15,15,.07)',
       tick: dark ? '#7E8396' : '#A5A199',
       tipBg: dark ? 'rgba(18,18,30,.94)' : '#37352F',
