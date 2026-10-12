@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ru" data-theme="light">
+<html lang="ru" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dark Fusion Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%230C0B11'/%3E%3Ccircle cx='12' cy='12' r='6.2' fill='none' stroke='%23FF752A' stroke-width='3.8' stroke-dasharray='32 7.5' transform='rotate(-58 12 12)'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=8">
+<link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
 
@@ -21,9 +21,21 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
       <span data-i18n="nav.overview">Обзор</span>
     </button>
+    <button class="nav-i" data-v="pipeline">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="4.5" height="16" rx="1.5"/><rect x="9.75" y="4" width="4.5" height="11" rx="1.5"/><rect x="16.5" y="4" width="4.5" height="7" rx="1.5"/></svg>
+      <span data-i18n="nav.pipeline">Воронка</span> <span class="c" id="cPipe"></span>
+    </button>
     <button class="nav-i" data-v="deals">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6.5" width="19" height="13" rx="2"/><path d="M8.5 6.5V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5"/></svg>
       <span data-i18n="nav.deals">Сделки</span> <span class="c" id="cDeals"></span>
+    </button>
+    <button class="nav-i" data-v="clients">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.4"/><path d="M3.2 20c.5-3.3 3-5.3 5.8-5.3s5.3 2 5.8 5.3"/><path d="M16.5 5.3a3 3 0 0 1 0 5.9M18.2 14.9c2 .7 3.4 2.5 3.7 5.1"/></svg>
+      <span data-i18n="nav.clients">Клиенты</span> <span class="c" id="cClients"></span>
+    </button>
+    <button class="nav-i" data-v="reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 20h17"/><path d="M6.5 20V11M11 20V5.5M15.5 20v-6M20 20V8.5"/></svg>
+      <span data-i18n="nav.reports">Отчёты</span>
     </button>
     <button class="nav-i" data-v="content">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>
@@ -62,25 +74,72 @@
   <div class="bar"><span class="crumb" id="crumb"></span><span id="barT"></span></div>
 
   <section class="view on" id="v-overview">
+    <div class="greet" id="greet"></div>
     <h1 id="ovTitle"></h1>
     <div class="sub" id="ovSub"></div>
 
     <div id="goalBox"></div>
 
     <div class="grid g4">
-      <div class="card lift"><div class="m-k" data-i18n="m.received">Получено</div><div class="m-v" id="mPaid">0</div><div class="m-s" id="mPaidS"></div></div>
-      <div class="card lift"><div class="m-k" data-i18n="m.inWork">В работе</div><div class="m-v" id="mWork">0</div><div class="m-s" data-i18n="m.unpaid">не оплачено</div></div>
-      <div class="card lift"><div class="m-k" data-i18n="m.posts">Публикаций</div><div class="m-v" id="mPosts">0</div><div class="m-s" data-i18n="m.total">всего</div></div>
-      <div class="card lift"><div class="m-k" data-i18n="m.subs">Подписчиков</div><div class="m-v" id="mSubs">—</div><div class="m-s" id="mSubsS"></div></div>
+      <div class="card lift">
+        <div class="m-k" data-i18n="m.received">Получено</div>
+        <div class="m-v" id="mPaid">0</div>
+        <div class="m-s" id="mPaidS"></div>
+        <div class="track mini"><i id="mPaidBar"></i></div>
+      </div>
+      <div class="card lift"><div class="m-k" data-i18n="k.pipeline">Открытый пайплайн</div><div class="m-v" id="mPipe">0</div><div class="m-s" data-i18n="k.pipelineS">ждёт оплаты</div></div>
+      <div class="card lift"><div class="m-k" data-i18n="k.active">Открытых сделок</div><div class="m-v" id="mActive">0</div><div class="m-s" data-i18n="k.activeS">не доведены до оплаты</div></div>
+      <div class="card lift"><div class="m-k" data-i18n="k.conv">Конверсия лид→оплата</div><div class="m-v" id="mConv">0</div><div class="m-s" data-i18n="k.convS">дошли до денег</div></div>
+    </div>
+
+    <div class="grid g2" style="margin-top:13px">
+      <div class="card"><div class="m-k" data-i18n="ch.week">Выручка за неделю</div><div id="chWeek"></div></div>
+      <div class="card"><div class="m-k" data-i18n="ch.health">Здоровье сделок</div><div id="chHealth"></div></div>
+    </div>
+
+    <h2 data-i18n="as.h">Требуют внимания</h2>
+    <div id="assist"></div>
+  </section>
+
+  <section class="view" id="v-pipeline">
+    <h1 data-i18n="nav.pipeline">Воронка</h1>
+    <div class="sub" data-i18n="pipe.sub">Перетащи карточку в другую колонку — суммы и показатели пересчитаются сразу.</div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="view" id="v-clients">
+    <h1 data-i18n="nav.clients">Клиенты</h1>
+    <div class="sub" data-i18n="cl.sub">Карточка клиента и всё, что с ним происходило.</div>
+    <div class="row" style="margin-bottom:14px">
+      <input type="search" id="clSearch" class="grow" data-ph="cl.search">
+    </div>
+    <div class="cl-wrap">
+      <div class="cl-list" id="clList"></div>
+      <div class="cl-body" id="clBody"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-reports">
+    <h1 data-i18n="nav.reports">Отчёты</h1>
+    <div class="sub" data-i18n="rep.sub">Те же данные, но срезом: сколько, как быстро и с кем.</div>
+
+    <div class="grid g4">
+      <div class="card lift"><div class="m-k" data-i18n="rep.revenue">Выручка всего</div><div class="m-v" id="rRev">0</div><div class="m-s" id="rRevS"></div></div>
+      <div class="card lift"><div class="m-k" data-i18n="rep.closed">Сделок оплачено</div><div class="m-v" id="rClosed">0</div><div class="m-s" id="rClosedS"></div></div>
+      <div class="card lift"><div class="m-k" data-i18n="rep.cycle">Средний цикл</div><div class="m-v" id="rCycle">—</div><div class="m-s" id="rCycleS"></div></div>
+      <div class="card lift"><div class="m-k" data-i18n="rep.win">Win rate</div><div class="m-v" id="rWin">0</div><div class="m-s" data-i18n="rep.winS">оплачено из всех сделок</div></div>
     </div>
 
     <h2 data-i18n="ch.money">Поступления по месяцам</h2>
     <div class="card"><div id="chMoney"></div></div>
 
-    <div class="grid g2" style="margin-top:13px">
-      <div class="card"><div class="m-k" data-i18n="ch.subs">Рост подписчиков</div><div id="chSubs"></div></div>
-      <div class="card"><div class="m-k" data-i18n="ch.rubric">Просмотры по рубрикам</div><div id="chRubric"></div></div>
-    </div>
+    <h2 data-i18n="rep.board">Клиенты по выручке</h2>
+    <table>
+      <thead><tr>
+        <th data-i18n="th.client">Клиент</th><th data-i18n="th.deals">Сделок</th><th data-i18n="th.received">Получено</th>
+      </tr></thead>
+      <tbody id="boardRows"></tbody>
+    </table>
   </section>
 
   <section class="view" id="v-deals">
@@ -108,6 +167,16 @@
   <section class="view" id="v-content">
     <h1 data-i18n="nav.content">Контент</h1>
     <div class="sub" data-i18n="content.sub">Что вышло и как это отработало.</div>
+
+    <div class="grid g2">
+      <div class="card lift"><div class="m-k" data-i18n="m.posts">Публикаций</div><div class="m-v" id="mPosts">0</div><div class="m-s" data-i18n="m.total">всего</div></div>
+      <div class="card lift"><div class="m-k" data-i18n="m.subs">Подписчиков</div><div class="m-v" id="mSubs">—</div><div class="m-s" id="mSubsS"></div></div>
+    </div>
+
+    <div class="grid g2" style="margin-top:13px;margin-bottom:22px">
+      <div class="card"><div class="m-k" data-i18n="ch.subs">Рост подписчиков</div><div id="chSubs"></div></div>
+      <div class="card"><div class="m-k" data-i18n="ch.rubric">Просмотры по рубрикам</div><div id="chRubric"></div></div>
+    </div>
 
     <form class="row" id="fPost">
       <input type="text" name="title" class="grow" data-ph="f.title" required>
@@ -157,6 +226,7 @@
 
     <h2 data-i18n="set.dash">Дашборд</h2>
     <div class="card">
+      <div class="pf"><label data-i18n="set.name">Имя</label><input data-s="name" data-ph="set.namePh"></div>
       <div class="pf"><label data-i18n="set.title">Название</label><input data-s="title" data-ph="set.titlePh"></div>
       <div class="pf"><label data-i18n="set.subtitle">Подзаголовок</label><input data-s="subtitle" data-ph="set.subtitlePh"></div>
       <div class="pf"><label data-i18n="set.currency">Валюта</label><input data-s="currency" data-ph="set.currencyPh"></div>
@@ -203,7 +273,7 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="i18n.js?v=9"></script>
-<script src="app.js?v=9"></script>
+<script src="i18n.js?v=10"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>

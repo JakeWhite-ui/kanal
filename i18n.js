@@ -39,7 +39,10 @@ window.I18N = {
     'ch.noRubrics': 'Задай рубрики в настройках',
     views: 'просмотров',
 
-    'st.lead': 'Лид', 'st.work': 'В работе', 'st.invoiced': 'Счёт выставлен', 'st.paid': 'Получено',
+    // Шесть этапов воронки. Порядок в STATUSES задаёт и колонки канбана, и смысл
+    // «продвинуть сделку»: вправо — ближе к деньгам.
+    'st.lead': 'Лид', 'st.kp': 'КП отправлено', 'st.invoiced': 'Счёт выставлен',
+    'st.prepaid': 'Предоплата 50 %', 'st.work': 'В работе', 'st.paid': 'Оплачено',
 
     'deals.sub': 'Каждая сумма — с клиентом и датой, чтобы цифру можно было проследить.',
     'content.sub': 'Что вышло и как это отработало.',
@@ -65,6 +68,7 @@ window.I18N = {
 
     'set.sub': 'Всё, что показывает дашборд, берётся отсюда. Пустое поле — блок просто не показывается.',
     'set.dash': 'Дашборд', 'set.title': 'Название', 'set.titlePh': 'как назвать',
+    'set.name': 'Имя', 'set.namePh': 'как обращаться в приветствии',
     'set.subtitle': 'Подзаголовок', 'set.subtitlePh': 'одной строкой, необязательно',
     'set.currency': 'Валюта', 'set.currencyPh': 'AED, $, ₽ — как писать рядом с суммами',
     'set.goal': 'Цель', 'set.goalAmount': 'Сумма цели', 'set.goalPh': 'оставь пустым, если цели нет',
@@ -88,6 +92,45 @@ window.I18N = {
     importBad: 'файл не подошёл — нужен экспорт этого же дашборда',
     localBroken: 'данные в браузере битые, начинаю с чистого',
     localFull: 'браузер не дал сохранить: нет места или приватный режим',
+
+    'nav.pipeline': 'Воронка',
+    'nav.reports': 'Отчёты',
+    'nav.clients': 'Клиенты',
+
+    'greet.morning': 'Доброе утро', 'greet.day': 'Добрый день',
+    'greet.evening': 'Добрый вечер', 'greet.night': 'Доброй ночи',
+
+    'k.pipeline': 'Открытый пайплайн', 'k.pipelineS': 'ждёт оплаты',
+    // Намеренно «открытых», а не «в работе»: метрика считает все незакрытые сделки,
+    // включая лидов, и совпадение названия с колонкой канбана читалось бы как ошибка.
+    'k.active': 'Открытых сделок', 'k.activeS': 'не доведены до оплаты',
+    'k.conv': 'Конверсия лид→оплата', 'k.convS': 'дошли до денег',
+
+    'ch.week': 'Выручка за неделю', 'ch.weekEmpty': 'Появится с первым поступлением',
+    'ch.health': 'Здоровье сделок', 'ch.healthEmpty': 'Появится с первой сделкой',
+
+    'as.h': 'Требуют внимания', 'as.sub': 'Без движения больше 7 дней',
+    'as.none': 'Все сделки двигались за последнюю неделю.',
+    'as.risk': 'под угрозой', 'as.days': 'дн. без движения',
+
+    'pipe.sub': 'Перетащи карточку в другую колонку — суммы и показатели пересчитаются сразу.',
+    'pipe.inStage': 'дн. в этапе', 'pipe.noAct': 'активности нет', 'pipe.empty': 'пусто',
+
+    'rep.sub': 'Те же данные, но срезом: сколько, как быстро и с кем.',
+    'rep.revenue': 'Выручка всего', 'rep.closed': 'Сделок оплачено',
+    'rep.cycle': 'Средний цикл', 'rep.cycleDays': 'дн. от касания до оплаты',
+    'rep.win': 'Win rate', 'rep.winS': 'оплачено из всех сделок',
+    'rep.board': 'Клиенты по выручке', 'rep.noData': 'нет данных',
+
+    'cl.sub': 'Карточка клиента и всё, что с ним происходило.',
+    'cl.search': 'поиск по клиенту', 'cl.none': 'Никого не нашлось.',
+    'cl.pick': 'Выбери клиента в списке.',
+    'cl.log': 'Активность', 'cl.noLog': 'Записей нет. Первая строка — что произошло.',
+    'cl.note': 'что произошло', 'cl.add': 'Записать',
+    'cl.got': 'Получено', 'cl.open': 'Ждёт оплаты', 'cl.dealsN': 'Сделок',
+
+    'th.received': 'Получено', 'th.deals': 'Сделок',
+    days: 'дн.',
 
     months: ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'],
   },
@@ -130,7 +173,8 @@ window.I18N = {
     'ch.noRubrics': 'Set categories in settings',
     views: 'views',
 
-    'st.lead': 'Lead', 'st.work': 'In progress', 'st.invoiced': 'Invoiced', 'st.paid': 'Received',
+    'st.lead': 'Lead', 'st.kp': 'Proposal sent', 'st.invoiced': 'Invoiced',
+    'st.prepaid': '50 % prepaid', 'st.work': 'In progress', 'st.paid': 'Paid',
 
     'deals.sub': 'Every amount carries a client and a date, so the number stays traceable.',
     'content.sub': 'What went out and how it performed.',
@@ -156,6 +200,7 @@ window.I18N = {
 
     'set.sub': 'Everything the dashboard shows comes from here. Leave a field empty and its block disappears.',
     'set.dash': 'Dashboard', 'set.title': 'Name', 'set.titlePh': 'what to call it',
+    'set.name': 'Your name', 'set.namePh': 'how to greet you',
     'set.subtitle': 'Subtitle', 'set.subtitlePh': 'one line, optional',
     'set.currency': 'Currency', 'set.currencyPh': 'AED, $, € — shown next to amounts',
     'set.goal': 'Goal', 'set.goalAmount': 'Target amount', 'set.goalPh': 'leave empty if there is no goal',
@@ -179,6 +224,43 @@ window.I18N = {
     importBad: 'file rejected — needs an export from this dashboard',
     localBroken: 'browser data is corrupt, starting clean',
     localFull: 'browser refused to save: out of space or private mode',
+
+    'nav.pipeline': 'Pipeline',
+    'nav.reports': 'Reports',
+    'nav.clients': 'Clients',
+
+    'greet.morning': 'Good morning', 'greet.day': 'Good afternoon',
+    'greet.evening': 'Good evening', 'greet.night': 'Good night',
+
+    'k.pipeline': 'Open pipeline', 'k.pipelineS': 'awaiting payment',
+    'k.active': 'Open deals', 'k.activeS': 'not yet paid',
+    'k.conv': 'Lead→paid conversion', 'k.convS': 'reached the money',
+
+    'ch.week': 'Revenue by week', 'ch.weekEmpty': 'Appears with your first payment',
+    'ch.health': 'Deal health', 'ch.healthEmpty': 'Appears with your first deal',
+
+    'as.h': 'Needs attention', 'as.sub': 'No movement for over 7 days',
+    'as.none': 'Every deal moved within the last week.',
+    'as.risk': 'at risk', 'as.days': 'days idle',
+
+    'pipe.sub': 'Drag a card to another column — totals and metrics update instantly.',
+    'pipe.inStage': 'days in stage', 'pipe.noAct': 'no activity', 'pipe.empty': 'empty',
+
+    'rep.sub': 'The same data, sliced: how much, how fast, and with whom.',
+    'rep.revenue': 'Total revenue', 'rep.closed': 'Deals paid',
+    'rep.cycle': 'Avg cycle', 'rep.cycleDays': 'days from touch to payment',
+    'rep.win': 'Win rate', 'rep.winS': 'paid out of all deals',
+    'rep.board': 'Clients by revenue', 'rep.noData': 'no data',
+
+    'cl.sub': 'The client card and everything that happened with them.',
+    'cl.search': 'search by client', 'cl.none': 'Nobody found.',
+    'cl.pick': 'Pick a client from the list.',
+    'cl.log': 'Activity', 'cl.noLog': 'No entries yet. First line — what happened.',
+    'cl.note': 'what happened', 'cl.add': 'Log it',
+    'cl.got': 'Received', 'cl.open': 'Awaiting', 'cl.dealsN': 'Deals',
+
+    'th.received': 'Received', 'th.deals': 'Deals',
+    days: 'd',
 
     months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
   },

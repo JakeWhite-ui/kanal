@@ -11,8 +11,15 @@
   var charts = {};
   var $ = function (id) { return document.getElementById(id); };
 
-  var STATUSES = ['lead', 'work', 'invoiced', 'paid'];
-  var ST_CLS = { lead: 't-lead', work: 't-work', invoiced: 't-inv', paid: 't-paid' };
+  // Порядок — это и колонки канбана, и смысл «продвинуть сделку»: вправо ближе к деньгам.
+  // Старые файлы знали только lead/work/invoiced/paid; kp и prepaid просто добавились,
+  // поэтому миграция ничего не переписывает.
+  var STATUSES = ['lead', 'kp', 'invoiced', 'prepaid', 'work', 'paid'];
+  var ST_CLS = {
+    lead: 't-lead', kp: 't-lead', invoiced: 't-inv',
+    prepaid: 't-purple', work: 't-work', paid: 't-paid',
+  };
+  var RISK_DAYS = 7;
   var TAG_CLS = ['t-report', 't-teardown', 't-dubai', 't-personal'];
   var OLD_RUB = { report: 'Отчёт', teardown: 'Разбор', dubai: 'Дубай', personal: 'Личное' };
   var OLD_PLAT = { threads: 'Threads', telegram: 'Telegram' };
@@ -25,10 +32,10 @@
   var n = function (v) { return Math.round(Number(v) || 0).toLocaleString(L === 'ru' ? 'ru-RU' : 'en-US'); };
   var cur = function () { return (S.settings.currency || '').trim(); };
   var money = function (v) { var c = cur(); return n(v) + (c ? ' ' + c : ''); };
-  var today = function () {
-    var d = new Date();
-    return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-  };
+  // Дата по локальному календарю, а не по UTC: иначе в Дубае «сегодня» наступает на 4 часа позже.
+  var isoD = function (d) { return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+  var today = function () { return isoD(new Date()); };
+  var daysBetween = function (a, b) { return Math.round((new Date(b) - new Date(a)) / 864e5); };
   var dmy = function (iso) {
     var p = String(iso || '').split('-');
     if (p.length !== 3) return '';
@@ -59,6 +66,78 @@
     return t('deal5');
   };
 
+  // ─── производные по сделкам ────────────────────────────────────────
+  // Последняя активность: позднее из «когда сделка вошла в этап» и записей по клиенту.
+  // Нужна и карточке канбана, и панели внимания, поэтому считается в одном месте.
+  function lastAct(d) {
+    var best = d.stage_date || d.date || '';
+    S.notes.forEach(function (nt) {
+      if (nt.client === d.client && nt.date && nt.date > best) best = nt.date;
+    });
+    return best;
+  }
+  function idleDays(d) {
+    var a = lastAct(d);
+    return a ? Math.max(0, daysBetween(a, today())) : null;
+  }
+  function atRisk(d) {
+    var k = idleDays(d);
+    return d.status !== 'paid' && k !== null && k > RISK_DAYS;
+  }
+
+  function metrics() {
+    var m = { paid: 0, open: 0, active: 0, closed: 0, won: 0, conv: 0, win: 0, cycle: null };
+    var cycles = [];
+    S.deals.forEach(function (d) {
+      var a = Number(d.amount) || 0, p = got(d);
+      m.paid += p;
+      m.open += Math.max(0, a - p);
+      if (d.status !== 'paid') m.active++;
+      if (p > 0) m.closed++;
+      if (d.status === 'paid') {
+        m.won++;
+        // Цикл считаем только там, где известны и первое касание, и дата попадания в «оплачено».
+        if (d.date && d.stage_date && d.stage_date >= d.date) cycles.push(daysBetween(d.date, d.stage_date));
+      }
+    });
+    if (S.deals.length) {
+      m.conv = (m.closed / S.deals.length) * 100;
+      m.win = (m.won / S.deals.length) * 100;
+    }
+    if (cycles.length) m.cycle = Math.round(cycles.reduce(function (a, b) { return a + b; }, 0) / cycles.length);
+    return m;
+  }
+
+  // Клиенты не отдельная сущность: список собирается из сделок и записей активности.
+  function clients() {
+    var map = {};
+    function slot(name) {
+      if (!map[name]) map[name] = { name: name, got: 0, open: 0, deals: 0, notes: 0, last: '' };
+      return map[name];
+    }
+    S.deals.forEach(function (d) {
+      var c = slot(d.client || '—');
+      var a = Number(d.amount) || 0, p = got(d);
+      c.got += p; c.open += Math.max(0, a - p); c.deals++;
+      var la = lastAct(d);
+      if (la > c.last) c.last = la;
+    });
+    S.notes.forEach(function (nt) {
+      var c = slot(nt.client || '—');
+      c.notes++;
+      if (nt.date > c.last) c.last = nt.date;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; })
+      .sort(function (a, b) { return b.got - a.got || (b.last < a.last ? -1 : 1); });
+  }
+
+  function greeting() {
+    var h = new Date().getHours();
+    var k = h < 5 ? 'night' : h < 12 ? 'morning' : h < 18 ? 'day' : 'evening';
+    var name = (S.settings.name || '').trim();
+    return t('greet.' + k) + (name ? ', ' + name : '');
+  }
+
   function flag(text, kind) {
     var el = $('saved');
     el.textContent = text;
@@ -72,7 +151,7 @@
   var standalone = false;
 
   function blank() {
-    return { meta: { version: 3 }, settings: {}, profile: {}, deals: [], subs: [], posts: [], log: [] };
+    return { meta: { version: 4 }, settings: {}, profile: {}, deals: [], subs: [], posts: [], log: [], notes: [] };
   }
 
   function load() {
@@ -100,6 +179,7 @@
     d.subs = d.subs || [];
     d.posts = d.posts || [];
     d.log = d.log || [];
+    d.notes = d.notes || [];
 
     if (d.goal) {
       if (d.settings.goal === undefined && d.goal.target) d.settings.goal = d.goal.target;
@@ -120,13 +200,22 @@
     });
     d.subs.forEach(function (s) { if (OLD_PLAT[s.platform]) s.platform = OLD_PLAT[s.platform]; });
 
-    [d.deals, d.subs, d.posts, d.log].forEach(function (arr) {
+    [d.deals, d.subs, d.posts, d.log, d.notes].forEach(function (arr) {
       arr.forEach(function (it) { if (!it.id) it.id = uid(); });
     });
     // До появления частичной оплаты «получено» значило всю сумму сразу.
     d.deals.forEach(function (x) {
       if (x.paid == null) x.paid = x.status === 'paid' ? Number(x.amount) || 0 : 0;
+      // Когда сделка попала в текущий этап. У старых записей этого нет — берём дату сделки,
+      // иначе «дней в этапе» и средний цикл посчитались бы от нуля.
+      if (!x.stage_date) x.stage_date = x.date || today();
     });
+    // Имя для приветствия: берём первое слово из «кто я», но дальше оно живёт
+    // отдельным полем настроек и правится руками.
+    if (d.settings.name === undefined) {
+      var who = String(d.profile.who || '').trim();
+      d.settings.name = who ? who.split(/[\s,.]+/)[0] : '';
+    }
     return d;
   }
 
@@ -160,18 +249,28 @@
     }, 500);
   }
 
-  function countUp(el, to) {
-    var from = Number(String(el.textContent).replace(/[^\d]/g, '')) || 0;
+  // Предыдущее значение держим в dataset, а не парсим из текста: у процентов и дробей
+  // в подписи есть запятая и знак, и разбор текста давал бы неверную точку старта.
+  function countUp(el, to, fmt) {
+    fmt = fmt || n;
+    var from = Number(el.dataset.v);
+    if (!isFinite(from)) from = 0;
+    el.dataset.v = to;
     // В скрытой вкладке requestAnimationFrame не вызывается — анимация замерла бы
     // на начальном значении и показывала неверную сумму. Там ставим итог сразу.
-    if (from === to || document.hidden) { el.textContent = n(to); return; }
+    if (from === to || document.hidden) { el.textContent = fmt(to); return; }
     var t0 = performance.now(), dur = 800;
     (function tick(ts) {
       var k = Math.min(1, (ts - t0) / dur);
-      el.textContent = n(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+      el.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - k, 3)));
       if (k < 1) requestAnimationFrame(tick);
     })(t0);
   }
+  // Мелкие доли округлять до целого нельзя: 2 % цели превратились бы в 2 %, а 0,4 % — в 0 %.
+  var pctFmt = function (v) {
+    var s = v > 0 && v < 10 ? v.toFixed(1) : String(Math.round(v));
+    return (L === 'ru' ? s.replace('.', ',') : s) + ' %';
+  };
 
   // ─── графики ───────────────────────────────────────────────────────
   function theme() { return document.documentElement.dataset.theme; }
@@ -182,6 +281,7 @@
       green: dark ? '#4DAB9A' : '#0F7B5F',
       amber: dark ? '#D9A441' : '#C08A2E',
       purple: dark ? '#9A6DD7' : '#6940A5',
+      blue: dark ? '#6B9BD8' : '#2B6CB0',
       grid: dark ? 'rgba(255,255,255,.07)' : 'rgba(15,15,15,.07)',
       tick: dark ? '#78776F' : '#A5A199',
       tipBg: dark ? '#2C2C2C' : '#37352F',
@@ -334,6 +434,91 @@
     });
   }
 
+  // Понедельник недели, в которую попала дата. ОАЭ без перехода на зимнее время,
+  // поэтому арифметика сутками здесь безопасна.
+  function monday(iso) {
+    var dt = new Date(iso);
+    dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
+    return isoD(dt);
+  }
+
+  function renderWeekChart() {
+    var P = palette();
+    var withMoney = S.deals.filter(function (d) { return got(d) > 0 && d.date; });
+    if (!withMoney.length) { drawChart('chWeek', 'week', t('ch.weekEmpty')); return; }
+    var keys = [], base0 = new Date(monday(today()));
+    for (var i = 7; i >= 0; i--) keys.push(isoD(new Date(base0.getTime() - i * 7 * 864e5)));
+    var sums = {};
+    keys.forEach(function (k) { sums[k] = 0; });
+    withMoney.forEach(function (d) {
+      var k = monday(d.date);
+      if (sums[k] !== undefined) sums[k] += got(d);
+    });
+    var o = base(P);
+    o.plugins.tooltip.callbacks = { label: function (c) { return money(c.parsed.y); } };
+    o.scales = {
+      x: { grid: { display: false }, border: { display: false }, ticks: tickCfg(P) },
+      y: {
+        beginAtZero: true, grid: { color: P.grid, drawTicks: false }, border: { display: false },
+        ticks: Object.assign({}, tickCfg(P), { callback: function (v) { return n(v); } }),
+      },
+    };
+    drawChart('chWeek', 'week', '', {
+      aria: t('ch.week'),
+      chart: {
+        type: 'line',
+        data: {
+          labels: keys.map(dmy),
+          datasets: [{
+            data: keys.map(function (k) { return sums[k]; }),
+            borderColor: P.acc, borderWidth: 2.2, tension: .35, fill: true,
+            backgroundColor: function (c) { return fade(c.chart.ctx, c.chart.chartArea, P.acc, '3A', '00'); },
+            pointBackgroundColor: P.acc, pointRadius: 3, pointHoverRadius: 5.5,
+          }],
+        },
+        options: o,
+      },
+    });
+  }
+
+  function stageColors(P) {
+    return { lead: P.tick, kp: P.purple, invoiced: P.acc, prepaid: P.amber, work: P.blue, paid: P.green };
+  }
+
+  function renderHealthChart() {
+    var P = palette();
+    if (!S.deals.length) { drawChart('chHealth', 'health', t('ch.healthEmpty')); return; }
+    var SC = stageColors(P);
+    // Пустые этапы в пончик не попадают — иначе легенда забита нулями.
+    var used = STATUSES.filter(function (st) {
+      return S.deals.filter(function (d) { return d.status === st; }).length > 0;
+    });
+    var o = base(P);
+    o.cutout = '62%';
+    o.plugins.tooltip.callbacks = {
+      label: function (c) { return c.parsed + ' ' + plural(c.parsed); },
+    };
+    o.plugins.legend = {
+      display: true, position: 'right',
+      labels: { usePointStyle: true, boxWidth: 7, boxHeight: 7, padding: 11, color: P.tick, font: { size: 11, family: "'Inter', sans-serif" } },
+    };
+    drawChart('chHealth', 'health', '', {
+      aria: t('ch.health'),
+      chart: {
+        type: 'doughnut',
+        data: {
+          labels: used.map(function (st) { return t('st.' + st); }),
+          datasets: [{
+            data: used.map(function (st) { return S.deals.filter(function (d) { return d.status === st; }).length; }),
+            backgroundColor: used.map(function (st) { return SC[st]; }),
+            borderWidth: 0, hoverOffset: 6,
+          }],
+        },
+        options: o,
+      },
+    });
+  }
+
   // ─── блоки ─────────────────────────────────────────────────────────
   function renderOverview() {
     var title = (S.settings.title || '').trim();
@@ -344,31 +529,24 @@
     $('crumb').textContent = title || t('dashboard');
     document.title = title ? title + ' · Dark Fusion' : 'Dark Fusion Dashboard';
 
+    $('greet').textContent = greeting() + ' · ' + dmy(today());
+
     // Сделка живёт одной строкой: amount — вся стоимость, paid — сколько пришло.
     // Предоплата 50 % не плодит второй сделки, поэтому в списке нет дублей.
-    var paid = 0, work = 0, closed = 0;
-    S.deals.forEach(function (d) {
-      var a = Number(d.amount) || 0, p = got(d);
-      paid += p;
-      work += Math.max(0, a - p);
-      if (p > 0) closed++;
-    });
+    var m = metrics();
+    var goal = Number(S.settings.goal) || 0;
 
-    countUp($('mPaid'), paid);
-    $('mPaidS').textContent = closed ? closed + ' ' + plural(closed) : t('m.nothing');
-    $('mWork').textContent = n(work);
-    $('mPosts').textContent = S.posts.length;
+    countUp($('mPaid'), m.paid);
+    $('mPaidS').textContent = m.closed ? m.closed + ' ' + plural(m.closed) : t('m.nothing');
+    $('mPaidBar').style.width = goal ? Math.min(100, (m.paid / goal) * 100) + '%' : '0%';
+    countUp($('mPipe'), m.open);
+    countUp($('mActive'), m.active);
+    countUp($('mConv'), m.conv, pctFmt);
 
-    var byPlat = {};
-    S.subs.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (s) {
-      byPlat[s.platform] = Number(s.count) || 0;
-    });
-    var totalSubs = Object.keys(byPlat).reduce(function (a, k) { return a + byPlat[k]; }, 0);
-    $('mSubs').textContent = S.subs.length ? n(totalSubs) : '—';
-    $('mSubsS').textContent = S.subs.length ? Object.keys(byPlat).join(' + ') : t('m.noSnaps');
+    renderAssist();
 
     // Блок цели рисуется только если цель задана — иначе его просто нет.
-    var goal = Number(S.settings.goal) || 0;
+    var paid = m.paid;
     if (!goal) { $('goalBox').innerHTML = ''; }
     else {
       var pct = (paid / goal) * 100;
@@ -385,8 +563,38 @@
     }
 
     $('cDeals').textContent = S.deals.length || '';
+    $('cPipe').textContent = m.active || '';
+    $('cClients').textContent = clients().length || '';
     $('cPosts').textContent = S.posts.length || '';
     $('cLog').textContent = S.log.length || '';
+  }
+
+  // Сколько сделок без движения и на какую сумму. Берём остаток к оплате,
+  // а не всю стоимость: под угрозой именно не пришедшие деньги.
+  function renderAssist() {
+    var box = $('assist');
+    var risky = S.deals.filter(atRisk).sort(function (a, b) { return idleDays(b) - idleDays(a); });
+    if (!risky.length) { box.innerHTML = '<div class="empty">' + esc(t('as.none')) + '</div>'; return; }
+    var sum = risky.reduce(function (a, d) { return a + Math.max(0, (Number(d.amount) || 0) - got(d)); }, 0);
+    box.innerHTML = '<div class="as-head">' + esc(t('as.sub')) + ' · <b>' + esc(money(sum)) + '</b> ' + esc(t('as.risk')) + '</div>'
+      + risky.map(function (d) {
+        var a = Number(d.amount) || 0, p = got(d);
+        return '<div class="as-row"><div><div class="as-c">' + esc(d.client) + '</div>'
+          + '<div class="as-m">' + esc(t('st.' + d.status)) + (d.service ? ' · ' + esc(d.service) : '') + '</div></div>'
+          + '<div class="as-a"><div class="as-sum">' + esc(money(Math.max(0, a - p))) + '</div>'
+          + '<div class="as-d">' + idleDays(d) + ' ' + esc(t('as.days')) + '</div></div></div>';
+      }).join('');
+  }
+
+  function renderContentMetrics() {
+    $('mPosts').textContent = S.posts.length;
+    var byPlat = {};
+    S.subs.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (s) {
+      byPlat[s.platform] = Number(s.count) || 0;
+    });
+    var totalSubs = Object.keys(byPlat).reduce(function (a, k) { return a + byPlat[k]; }, 0);
+    $('mSubs').textContent = S.subs.length ? n(totalSubs) : '—';
+    $('mSubsS').textContent = S.subs.length ? Object.keys(byPlat).join(' + ') : t('m.noSnaps');
   }
 
   function renderDeals() {
@@ -407,6 +615,236 @@
         + '<td class="cell-a">' + sum
         + ' <button class="del" data-del="deals" data-id="' + esc(d.id) + '" aria-label="' + t('del') + '">&times;</button></td></tr>';
     }).join('');
+  }
+
+  // ─── воронка ───────────────────────────────────────────────────────
+  // Карточка, только что приехавшая в новую колонку, получает класс посадки один раз.
+  var justMoved = null;
+
+  function renderBoard() {
+    $('board').innerHTML = STATUSES.map(function (st) {
+      var ds = S.deals.filter(function (d) { return d.status === st; })
+        .sort(function (a, b) { return (Number(b.amount) || 0) - (Number(a.amount) || 0); });
+      // Итог колонки — стоимость сделок на этапе, а не полученное:
+      // так видно, сколько денег стоит на каждой ступени.
+      var sum = ds.reduce(function (a, d) { return a + (Number(d.amount) || 0); }, 0);
+      var cards = ds.length ? ds.map(function (d) {
+        var a = Number(d.amount) || 0, p = got(d);
+        var val = a ? (p > 0 && p < a ? n(p) + ' <span class="part">/ ' + n(a) + '</span>' : n(a)) : (p ? n(p) : '—');
+        var inStage = d.stage_date ? Math.max(0, daysBetween(d.stage_date, today())) : null;
+        var idle = idleDays(d);
+        return '<div class="dcard' + (atRisk(d) ? ' risk' : '') + (justMoved === d.id ? ' just-moved' : '')
+          + '" data-id="' + esc(d.id) + '">'
+          + '<div class="dcard-c">' + esc(d.client) + '</div>'
+          + '<div class="dcard-a">' + val + '</div>'
+          + '<div class="dcard-m">'
+          + (inStage === null ? '' : '<span>' + inStage + ' ' + esc(t('pipe.inStage')) + '</span><span>·</span>')
+          + '<span>' + (idle === null ? esc(t('pipe.noAct')) : idle + ' ' + esc(t('days'))) + '</span>'
+          + '</div></div>';
+      }).join('') : '<div class="col-e">' + esc(t('pipe.empty')) + '</div>';
+      return '<div class="col" data-st="' + st + '">'
+        + '<div class="col-h"><span class="col-n">' + esc(t('st.' + st)) + '</span>'
+        + '<span class="col-c">' + ds.length + '</span></div>'
+        + '<div class="col-s">' + esc(money(sum)) + '</div>'
+        + '<div class="col-b">' + cards + '</div></div>';
+    }).join('');
+    justMoved = null;
+  }
+
+  // Перенос на pointer events, а не на HTML5 drag-and-drop: тот не работает на тач
+  // и не даёт управлять видом «поднятой» карточки.
+  function initDnD() {
+    var board = $('board');
+    var drag = null;
+
+    function clearOver() {
+      Array.prototype.forEach.call(board.querySelectorAll('.col.over'), function (c) { c.classList.remove('over'); });
+    }
+
+    // Шесть колонок не влезают в экран ноутбука, а pointermove не приходит, пока
+    // курсор стоит на месте — поэтому у края доска едет сама, по таймеру.
+    // setInterval, а не requestAnimationFrame: rAF не работает в скрытой вкладке.
+    var scroller = null;
+    function edgeScroll(dir) {
+      if (scroller && scroller.dir === dir) return;
+      stopScroll();
+      if (!dir) return;
+      scroller = { dir: dir, id: setInterval(function () { board.scrollLeft += dir * 14; }, 16) };
+    }
+    function stopScroll() {
+      if (scroller) { clearInterval(scroller.id); scroller = null; }
+    }
+
+    board.addEventListener('pointerdown', function (e) {
+      if (e.button) return;
+      var card = e.target.closest('.dcard');
+      if (!card) return;
+      var r = card.getBoundingClientRect();
+      drag = {
+        id: card.dataset.id, card: card, ghost: null, moved: false, target: null,
+        dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width,
+        x0: e.clientX, y0: e.clientY,
+      };
+      card.setPointerCapture(e.pointerId);
+    });
+
+    board.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      if (!drag.moved) {
+        // Порог в 4 px, иначе обычный клик по карточке уже считался бы переносом.
+        if (Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) < 4) return;
+        drag.moved = true;
+        drag.ghost = drag.card.cloneNode(true);
+        drag.ghost.className = 'dcard drag-ghost';
+        drag.ghost.style.width = drag.w + 'px';
+        document.body.appendChild(drag.ghost);
+        drag.card.classList.add('ghosted');
+      }
+      // Позицию двигаем прямо в обработчике, без requestAnimationFrame: в скрытой
+      // вкладке rAF не вызывается, и перенос бы не работал вообще.
+      drag.ghost.style.left = (e.clientX - drag.dx) + 'px';
+      drag.ghost.style.top = (e.clientY - drag.dy) + 'px';
+      var br = board.getBoundingClientRect();
+      var EDGE = 64;
+      edgeScroll(e.clientX > br.right - EDGE ? 1 : e.clientX < br.left + EDGE ? -1 : 0);
+
+      // У призрака pointer-events:none, поэтому под курсором видна колонка, а не он сам.
+      var under = document.elementFromPoint(e.clientX, e.clientY);
+      var col = under && under.closest ? under.closest('.col') : null;
+      if (col !== drag.target) {
+        clearOver();
+        drag.target = col;
+        if (col) col.classList.add('over');
+      }
+    });
+
+    function finish() {
+      if (!drag) return;
+      var d = drag;
+      drag = null;
+      stopScroll();
+      clearOver();
+      if (!d.moved) return;
+      var to = d.target && d.target.dataset.st;
+      var deal = S.deals.filter(function (x) { return x.id === d.id; })[0];
+      var ghost = d.ghost;
+
+      if (!deal || !to || deal.status === to) {
+        // Бросили мимо или в ту же колонку — призрак пружиной возвращается на место.
+        var r = d.card.getBoundingClientRect();
+        ghost.classList.add('settle');
+        ghost.style.left = r.left + 'px';
+        ghost.style.top = r.top + 'px';
+        ghost.style.transform = 'scale(1) rotate(0deg)';
+        setTimeout(function () { ghost.remove(); d.card.classList.remove('ghosted'); }, 340);
+        return;
+      }
+
+      deal.status = to;
+      deal.stage_date = today();
+      // «Оплачено» означает всю сумму: иначе касса разошлась бы с воронкой.
+      if (to === 'paid') deal.paid = Number(deal.amount) || 0;
+      // Предоплату заполняем только если не записано ничего — реальную частичную
+      // сумму перетаскивание затирать не должно.
+      if (to === 'prepaid' && got(deal) === 0) deal.paid = Math.round((Number(deal.amount) || 0) / 2);
+
+      ghost.classList.add('settle');
+      ghost.style.opacity = '0';
+      ghost.style.transform = 'scale(.96) rotate(0deg)';
+      setTimeout(function () { ghost.remove(); }, 340);
+      justMoved = deal.id;
+      save();
+    }
+
+    board.addEventListener('pointerup', finish);
+    board.addEventListener('pointercancel', finish);
+  }
+
+  // ─── отчёты ────────────────────────────────────────────────────────
+  function renderReports() {
+    var m = metrics();
+    countUp($('rRev'), m.paid);
+    $('rRevS').textContent = cur();
+    countUp($('rClosed'), m.closed);
+    $('rClosedS').textContent = m.closed ? plural(m.closed) : t('m.nothing');
+    countUp($('rWin'), m.win, pctFmt);
+    if (m.cycle === null) {
+      $('rCycle').textContent = '—';
+      $('rCycle').dataset.v = '';
+      $('rCycleS').textContent = t('rep.noData');
+    } else {
+      countUp($('rCycle'), m.cycle);
+      $('rCycleS').textContent = t('rep.cycleDays');
+    }
+
+    var box = $('boardRows');
+    var cs = clients().filter(function (c) { return c.deals > 0; });
+    if (!cs.length) { box.innerHTML = '<tr><td colspan="3" class="empty">' + esc(t('e.deals')) + '</td></tr>'; return; }
+    box.innerHTML = cs.map(function (c) {
+      return '<tr><td>' + esc(c.name) + '</td>'
+        + '<td class="tnum">' + c.deals + '</td>'
+        + '<td class="cell-a">' + esc(money(c.got)) + '</td></tr>';
+    }).join('');
+  }
+
+  // ─── клиенты ───────────────────────────────────────────────────────
+  var selClient = null;
+
+  function renderClients() {
+    var q = ($('clSearch').value || '').trim().toLowerCase();
+    var all = clients();
+    var shown = q ? all.filter(function (c) { return c.name.toLowerCase().indexOf(q) >= 0; }) : all;
+    var box = $('clList');
+    if (!shown.length) {
+      box.innerHTML = '<div class="empty">' + esc(all.length ? t('cl.none') : t('e.deals')) + '</div>';
+      $('clBody').innerHTML = '';
+      return;
+    }
+    // Выбранный мог отфильтроваться поиском — тогда показываем первого из найденных.
+    var stillThere = shown.filter(function (c) { return c.name === selClient; }).length > 0;
+    if (!stillThere) selClient = shown[0].name;
+    box.innerHTML = shown.map(function (c) {
+      return '<button class="cl-i' + (c.name === selClient ? ' on' : '') + '" data-cl="' + esc(c.name) + '">'
+        + '<span class="cl-i-n">' + esc(c.name) + '</span>'
+        + '<span class="cl-i-s">' + n(c.got) + '</span></button>';
+    }).join('');
+    renderClientBody();
+  }
+
+  function renderClientBody() {
+    var box = $('clBody');
+    var c = clients().filter(function (x) { return x.name === selClient; })[0];
+    if (!c) { box.innerHTML = '<div class="empty">' + esc(t('cl.pick')) + '</div>'; return; }
+
+    var deals = S.deals.filter(function (d) { return d.client === c.name; })
+      .sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : 1; });
+    var notes = S.notes.filter(function (nt) { return nt.client === c.name; })
+      .sort(function (a, b) { return b.date < a.date ? -1 : 1; });
+
+    box.innerHTML = '<h2 style="margin:0 0 4px">' + esc(c.name) + '</h2>'
+      + '<div class="cl-sums">'
+      + '<div><div class="cl-sum-k">' + esc(t('cl.got')) + '</div><div class="cl-sum-v">' + esc(money(c.got)) + '</div></div>'
+      + '<div><div class="cl-sum-k">' + esc(t('cl.open')) + '</div><div class="cl-sum-v">' + esc(money(c.open)) + '</div></div>'
+      + '<div><div class="cl-sum-k">' + esc(t('cl.dealsN')) + '</div><div class="cl-sum-v">' + c.deals + '</div></div>'
+      + '</div>'
+      + (deals.length ? '<table><tbody>' + deals.map(function (d) {
+        var a = Number(d.amount) || 0, p = got(d);
+        var val = a ? (p > 0 && p < a ? n(p) + ' / ' + n(a) : n(a)) : (p ? n(p) : '—');
+        return '<tr><td>' + esc(d.service || t('th.amount')) + '</td>'
+          + '<td><span class="tag ' + ST_CLS[d.status] + '">' + esc(t('st.' + d.status)) + '</span></td>'
+          + '<td class="tnum" style="font-size:12px">' + esc(dmy(d.date)) + '</td>'
+          + '<td class="cell-a">' + val + '</td></tr>';
+      }).join('') + '</tbody></table>' : '')
+      + '<h2>' + esc(t('cl.log')) + '</h2>'
+      + '<form class="row" id="fNote">'
+      + '<input type="date" name="date" value="' + today() + '">'
+      + '<input type="text" name="text" class="grow" placeholder="' + esc(t('cl.note')) + '" required>'
+      + '<button type="submit">' + esc(t('cl.add')) + '</button></form>'
+      + (notes.length ? notes.map(function (nt) {
+        return '<div class="entry"><div class="entry-h"><span class="entry-d">' + esc(dmy(nt.date)) + '</span>'
+          + '<button class="del" style="margin-left:auto" data-del="notes" data-id="' + esc(nt.id) + '" aria-label="' + esc(t('del')) + '">&times;</button></div>'
+          + '<ul><li>' + esc(nt.text) + '</li></ul></div>';
+      }).join('') : '<div class="empty">' + esc(t('cl.noLog')) + '</div>');
   }
 
   function renderSubs() {
@@ -478,6 +916,12 @@
 
   function render() {
     renderOverview();
+    renderWeekChart();
+    renderHealthChart();
+    renderBoard();
+    renderReports();
+    renderClients();
+    renderContentMetrics();
     renderMoneyChart();
     renderSubsChart();
     renderRubricChart();
@@ -547,20 +991,51 @@
     if (S) render();
   }
 
+  // Ключ намеренно theme2. Старая версия писала 'theme' при каждом запуске, поэтому
+  // у всех, кто открывал дашборд раньше, там лежит 'light' — не выбор, а прошлый
+  // дефолт. По старому ключу тёмная тема по умолчанию не включилась бы никогда.
+  var THEME_KEY = 'theme2';
+
   function applyTheme(th) {
     document.documentElement.dataset.theme = th;
     $('themeL').textContent = th === 'dark' ? t('themeLight') : t('themeDark');
-    try { localStorage.setItem('theme', th); } catch (e) { /* приватный режим */ }
+    try { localStorage.setItem(THEME_KEY, th); } catch (e) { /* приватный режим */ }
   }
 
   function boot() {
-    try { applyTheme(localStorage.getItem('theme') || 'light'); } catch (e) { applyTheme('light'); }
+    // Тёмная тема по умолчанию; выбор пользователя, если он был, важнее.
+    try { applyTheme(localStorage.getItem(THEME_KEY) || 'dark'); } catch (e) { applyTheme('dark'); }
     var saved = 'ru';
     try { saved = localStorage.getItem('lang') || 'ru'; } catch (e) { /* приватный режим */ }
 
     $('themeT').addEventListener('click', function () {
       applyTheme(theme() === 'dark' ? 'light' : 'dark');
+      // Цвета графиков заданы в JS, а не в CSS, поэтому их надо перерисовать руками.
+      renderWeekChart(); renderHealthChart();
       renderMoneyChart(); renderSubsChart(); renderRubricChart();
+    });
+
+    initDnD();
+
+    $('clSearch').addEventListener('input', renderClients);
+
+    // Форма записи и список клиентов пересобираются при каждой перерисовке,
+    // поэтому слушаем делегированно, а не на самих элементах.
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-cl]');
+      if (!b) return;
+      selClient = b.dataset.cl;
+      renderClients();
+    });
+
+    document.addEventListener('submit', function (e) {
+      if (e.target.id !== 'fNote') return;
+      e.preventDefault();
+      var f = new FormData(e.target);
+      var text = String(f.get('text') || '').trim();
+      if (!text) return;
+      S.notes.push({ id: uid(), client: selClient, date: f.get('date') || today(), text: text });
+      save();
     });
 
     document.querySelector('.lang').addEventListener('click', function (e) {
