@@ -15,9 +15,12 @@
   // Старые файлы знали только lead/work/invoiced/paid; kp и prepaid просто добавились,
   // поэтому миграция ничего не переписывает.
   var STATUSES = ['lead', 'kp', 'invoiced', 'prepaid', 'work', 'paid'];
+  // Классы тегов обязаны совпадать с stageColors(): иначе один и тот же этап
+  // в пончике и в таблице окрашен по-разному, и схема перестаёт читаться.
+  // lead серый · kp бронза · invoiced оранжевый · prepaid золото · work терракота · paid бирюза
   var ST_CLS = {
-    lead: 't-lead', kp: 't-lead', invoiced: 't-inv',
-    prepaid: 't-purple', work: 't-work', paid: 't-paid',
+    lead: 't-lead', kp: 't-bronze', invoiced: 't-inv',
+    prepaid: 't-work', work: 't-terra', paid: 't-paid',
   };
   var RISK_DAYS = 7;
   var TAG_CLS = ['t-report', 't-teardown', 't-dubai', 't-personal'];
@@ -289,10 +292,10 @@
     return {
       acc: cssVar('--acc', '#FF752A'),
       acc2: cssVar('--acc-2', '#FFB13D'),
-      green: cssVar('--green', '#34D399'),
-      amber: cssVar('--amber', '#FBBF24'),
-      purple: cssVar('--purple', '#A78BFA'),
-      blue: cssVar('--blue', '#5B9BD5'),
+      green: cssVar('--green', '#2A9D8F'),
+      amber: cssVar('--amber', '#FFC247'),
+      bronze: cssVar('--bronze', '#B08968'),
+      terra: cssVar('--terra', '#E07A5F'),
       grid: dark ? 'rgba(255,255,255,.07)' : 'rgba(15,15,15,.07)',
       tick: dark ? '#7E8396' : '#A5A199',
       tipBg: dark ? 'rgba(18,18,30,.94)' : '#37352F',
@@ -374,7 +377,7 @@
     dates.sort();
     var plats = [];
     S.subs.forEach(function (s) { if (plats.indexOf(s.platform) < 0) plats.push(s.platform); });
-    var colors = [P.acc, P.green, P.purple, P.amber];
+    var colors = [P.acc, P.bronze, P.terra, P.amber];
     var sets = plats.map(function (p, i) {
       var col = colors[i % 4];
       return {
@@ -414,7 +417,7 @@
     var rubs = list(S.settings.rubrics);
     if (!rubs.length) withViews.forEach(function (p) { if (p.rubric && rubs.indexOf(p.rubric) < 0) rubs.push(p.rubric); });
     if (!rubs.length) { drawChart('chRubric', 'rubric', t('ch.noRubrics')); return; }
-    var colors = [P.acc, P.green, P.purple, P.amber];
+    var colors = [P.acc, P.bronze, P.terra, P.amber];
     var o = base(P);
     o.indexAxis = 'y';
     o.plugins.tooltip.callbacks = { label: function (c) { return n(c.parsed.x) + ' ' + t('views'); } };
@@ -493,7 +496,7 @@
   }
 
   function stageColors(P) {
-    return { lead: P.tick, kp: P.purple, invoiced: P.acc, prepaid: P.amber, work: P.blue, paid: P.green };
+    return { lead: P.tick, kp: P.bronze, invoiced: P.acc, prepaid: P.amber, work: P.terra, paid: P.green };
   }
 
   function renderHealthChart() {

@@ -16,23 +16,22 @@
   --line-2:#DEDCD6;
   --acc:#FF752A;
   --acc-soft:#FFEFE4;
-  --green:#0F7B5F;
+  --green:#17776B;
   --green-soft:#E3F3EE;
   --amber:#A66B00;
   --amber-soft:#FBF0DD;
-  --red:#C0392B;
+  --red:#A83A2A;
   --red-soft:#FBEBE9;
-  --purple:#0E7490;
-  --purple-soft:#E2F3F7;
+  --bronze:#8A6240;
+  --bronze-soft:#F3EDE6;
+  --terra:#C2543A;
+  --terra-soft:#FBEAE5;
   --shadow:0 1px 2px rgba(15,15,15,.05),0 4px 12px -4px rgba(15,15,15,.07);
   --shadow-lg:0 2px 4px rgba(15,15,15,.06),0 12px 32px -8px rgba(15,15,15,.12);
   --r:7px;
   --r-lg:11px;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
   --acc-2:#D97706;
-  /* Цвет только для графиков: этап «в работе» не должен слиться с янтарной
-     предоплатой, а брать для него фирменный оранжевый нельзя — он у акцента. */
-  --blue:#2B6CB0;
   /* В светлой теме стекла нет: по белому фону размытие даёт грязь, а не глубину. */
   --glass:none;
   --hi:transparent;
@@ -54,18 +53,22 @@ html[data-theme="dark"]{
   --line-2:rgba(255,255,255,.19);
   --acc:#FF752A;
   --acc-2:#FFB13D;
-  --blue:#5B9BD5;
   --acc-soft:rgba(255,117,42,.16);
-  --green:#34D399;
-  --green-soft:rgba(52,211,153,.14);
+  /* Гамма тёплая аналоговая: всё в секторе от бронзы до золота, то есть по обе
+     стороны от фирменного оранжевого. Холодные синий и бирюза убраны — рядом с
+     оранжевым на чёрном они выглядят чужой вставкой, а не частью схемы.
+     Единственное исключение — приглушённая бирюза у «оплачено»: это
+     комплемент оранжевого, и успех обязан выделяться из общего тёплого ряда. */
+  --bronze:#B08968;
+  --bronze-soft:rgba(176,137,104,.16);
+  --terra:#E07A5F;
+  --terra-soft:rgba(224,122,95,.15);
+  --green:#2A9D8F;
+  --green-soft:rgba(42,157,143,.15);
   --amber:#FFC247;
   --amber-soft:rgba(255,194,71,.14);
-  --red:#FB7185;
-  --red-soft:rgba(251,113,133,.14);
-  /* Для этапа «КП отправлено» нужен цвет, не спорящий с оранжевым акцентом.
-     Холодная бирюза — единственное, что читается рядом с ним и не тянет одеяло. */
-  --purple:#45B0C9;
-  --purple-soft:rgba(69,176,201,.15);
+  --red:#C8503E;
+  --red-soft:rgba(200,80,62,.16);
   --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -8px rgba(0,0,0,.6);
   --shadow-lg:0 2px 6px rgba(0,0,0,.45),0 20px 48px -12px rgba(0,0,0,.7);
   --glass:blur(22px) saturate(1.5);
@@ -240,8 +243,9 @@ a:hover{text-decoration:underline}
 .t-report{background:var(--acc-soft);color:var(--acc)}
 .t-teardown{background:var(--green-soft);color:var(--green)}
 .t-dubai{background:var(--amber-soft);color:var(--amber)}
-.t-personal{background:var(--purple-soft);color:var(--purple)}
-.t-purple{background:var(--purple-soft);color:var(--purple)}
+.t-personal{background:var(--bronze-soft);color:var(--bronze)}
+.t-bronze{background:var(--bronze-soft);color:var(--bronze)}
+.t-terra{background:var(--terra-soft);color:var(--terra)}
 
 .del{
   background:none;border:0;color:var(--dim);padding:0 4px;font-size:17px;line-height:1;
@@ -287,16 +291,22 @@ tr:hover .del,.card:hover .del,.entry:hover .del{opacity:1}
    просвечивают полупрозрачные карточки — без этого слоя стекло выглядит
    грязно-серым, потому что размывать было бы нечего. */
 .orbs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;contain:strict}
-.orbs i{position:absolute;display:block;border-radius:50%;filter:blur(90px);opacity:.5}
-/* Пятна приглушены сильнее, чем были холодные: оранжевый на чёрном набирает
-   яркость быстрее синего, и на прежней непрозрачности фон читался как закат. */
-.orb1{width:460px;height:460px;top:-130px;left:-90px;background:radial-gradient(circle,#FF752A,transparent 70%);opacity:.26}
-.orb2{width:520px;height:520px;top:18%;right:-180px;background:radial-gradient(circle,#FF9A3D,transparent 70%);opacity:.18}
-.orb3{width:420px;height:420px;bottom:-150px;left:28%;background:radial-gradient(circle,#C2410C,transparent 70%);opacity:.22}
+/* Размытие больше, непрозрачность меньше, чем у холодной версии: оранжевый на
+   чёрном набирает яркость быстрее синего, и на прежних значениях фон читался
+   закатом, а сайдбар — залитым. Пятна должны намекать на тепло, а не светить. */
+.orbs i{position:absolute;display:block;border-radius:50%;filter:blur(120px);opacity:.5}
+/* Первое пятно уведено вправо от сайдбара — иначе вся левая панель рыжая. */
+.orb1{width:420px;height:420px;top:-150px;left:22%;background:radial-gradient(circle,#FF752A,transparent 70%);opacity:.14}
+.orb2{width:520px;height:520px;top:24%;right:-220px;background:radial-gradient(circle,#FF9A3D,transparent 70%);opacity:.10}
+.orb3{width:400px;height:400px;bottom:-180px;left:38%;background:radial-gradient(circle,#C2410C,transparent 70%);opacity:.13}
 /* В светлой теме пятна гасим: по белому они читаются как типографский брак. */
 html[data-theme="light"] .orbs{opacity:.12}
-/* Контент обязан лежать выше слоя пятен, иначе они перекроют интерфейс. */
-.side,main{position:relative;z-index:1}
+/* Контент обязан лежать выше слоя пятен, иначе они перекроют интерфейс.
+   У .side position НЕ задаём: своё sticky он получает выше, и перебить его
+   здесь значит уронить залипание сайдбара при скролле. z-index работает и так —
+   элемент уже позиционирован. */
+.side{z-index:2}
+main{position:relative;z-index:1}
 
 .card,.pcard,.col,.dcard,.as-row,.hero{
   backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);
@@ -326,7 +336,7 @@ html[data-theme="dark"] .dcard:hover{box-shadow:var(--shadow-lg),0 0 0 1px rgba(
 button{background:linear-gradient(135deg,var(--acc),var(--acc-2))}
 button:hover{filter:brightness(1.1);box-shadow:0 6px 20px -6px var(--acc)}
 .track i{background:linear-gradient(90deg,var(--acc),var(--acc-2))}
-.pct{background:var(--acc-soft);color:var(--purple)}
+.pct{background:var(--acc-soft);color:var(--acc)}
 
 /* Кольцо прогресса. Длина обводки задаётся в JS через stroke-dasharray,
    здесь только анимация набора. */
