@@ -77,6 +77,14 @@
     if (d.paid != null) return Number(d.paid) || 0;
     return d.status === 'paid' ? Number(d.amount) || 0 : 0;
   };
+  // Сколько перенос подставляет в «получено» на этом этапе. Вынесено в одно место:
+  // подстановка и её откат обязаны считать одинаково, иначе откат не сработает.
+  var autoPaid = function (d, stage) {
+    var a = Number(d.amount) || 0;
+    if (stage === 'paid') return a;
+    if (stage === 'prepaid') return Math.round(a / 2);
+    return null;
+  };
   // Русский требует трёх форм, английскому хватает двух — обе ветки живут в словаре.
   var plural = function (c) {
     if (L !== 'ru') return c === 1 ? t('deal1') : t('deal2');
@@ -796,13 +804,31 @@
         id: uid(), deal: deal.id, client: deal.client,
         from: deal.status, to: to, date: today(), at: new Date().toISOString(),
       });
+      var from = deal.status;
+
+      // Откат авто-суммы. Если «получено» выставил перенос, а не человек, и сделка
+      // уходит с того этапа — возвращаем прежнее значение. Без этого случайный
+      // бросок в «Оплачено» навсегда завышал Получено: обратный перенос сумму
+      // не трогал, а других способов её исправить в интерфейсе нет.
+      // Сверяем с автоматическим значением: если сумму с тех пор меняли руками,
+      // откатывать нельзя — затрём реальную оплату.
+      if (deal.paid_auto === from && got(deal) === autoPaid(deal, from)) {
+        deal.paid = Number(deal.paid_before) || 0;
+        delete deal.paid_auto;
+        delete deal.paid_before;
+      }
+
       deal.status = to;
       deal.stage_date = today();
+
       // «Оплачено» означает всю сумму: иначе касса разошлась бы с воронкой.
-      if (to === 'paid') deal.paid = Number(deal.amount) || 0;
       // Предоплату заполняем только если не записано ничего — реальную частичную
       // сумму перетаскивание затирать не должно.
-      if (to === 'prepaid' && got(deal) === 0) deal.paid = Math.round((Number(deal.amount) || 0) / 2);
+      if (to === 'paid' || (to === 'prepaid' && got(deal) === 0)) {
+        deal.paid_before = got(deal);
+        deal.paid = autoPaid(deal, to);
+        deal.paid_auto = to;
+      }
 
       ghost.classList.add('settle');
       ghost.style.opacity = '0';
