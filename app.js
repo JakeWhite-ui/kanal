@@ -9,7 +9,22 @@
   var L = 'ru';
   var saveTimer = null;
   var charts = {};
+  var bootAt = Date.now();
   var $ = function (id) { return document.getElementById(id); };
+
+  function hideBoot() {
+    var el = $('boot');
+    if (!el) return;
+    // Держим заставку минимум 420 мс. Локально данные приходят мгновенно, и без
+    // этой задержки она мигает одним кадром — читается как дефект, а не как загрузка.
+    var wait = Math.max(0, 420 - (Date.now() - bootAt));
+    setTimeout(function () {
+      el.classList.add('gone');
+      // Узел снимаем таймером, а не по transitionend: в скрытой вкладке переходы
+      // заморожены, событие не придёт, и заставка закроет дашборд навсегда.
+      setTimeout(function () { if (el.parentNode) el.remove(); }, 500);
+    }, wait);
+  }
 
   // Порядок — это и колонки канбана, и смысл «продвинуть сделку»: вправо ближе к деньгам.
   // Старые файлы знали только lead/work/invoiced/paid; kp и prepaid просто добавились,
@@ -1250,6 +1265,7 @@
 
     applyLang(saved);
     flag(t('loaded'), null, 'loaded');
+    hideBoot();
   }
 
   load();
