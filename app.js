@@ -137,14 +137,28 @@
   function greeting() {
     var h = new Date().getHours();
     var k = h < 5 ? 'night' : h < 12 ? 'morning' : h < 18 ? 'day' : 'evening';
-    var name = (S.settings.name || '').trim();
+    var name = sv('name');
     return t('greet.' + k) + (name ? ', ' + name : '');
   }
 
-  function flag(text, kind) {
+  // Ключ запоминаем, чтобы перевести строку заново при смене языка: иначе статус
+  // так и висит на языке, который был в момент загрузки. Сообщения об ошибках
+  // ключа не имеют — они склеены с текстом исключения и живут до следующего действия.
+  var lastFlag = null;
+
+  function flag(text, kind, key) {
+    lastFlag = key ? { key: key, kind: kind } : null;
     var el = $('saved');
     el.textContent = text;
     el.className = 'saved' + (kind ? ' ' + kind : '');
+  }
+
+  // Название и имя берём на языке интерфейса, если английский вариант задан.
+  // Остальные данные — клиенты, услуги, журнал — остаются как вписаны:
+  // переводить то, что человек набрал руками, приложение не вправе.
+  function sv(key) {
+    if (L === 'en' && S.settings[key + '_en']) return String(S.settings[key + '_en']).trim();
+    return String(S.settings[key] || '').trim();
   }
 
   // Два режима. С сервером (node server.js) источник правды — data.json на диске.
@@ -167,7 +181,7 @@
         try { raw = localStorage.getItem(LOCAL_KEY); } catch (e) { /* приватный режим — читать нечем */ }
         var parsed = blank();
         if (raw) {
-          try { parsed = JSON.parse(raw); } catch (e) { flag(t('localBroken'), 'err'); }
+          try { parsed = JSON.parse(raw); } catch (e) { flag(t('localBroken'), 'err', 'localBroken'); }
         }
         S = migrate(parsed);
         boot();
@@ -247,10 +261,10 @@
 
   function save(skipRender) {
     if (!skipRender) render();
-    flag(t('saving'));
+    flag(t('saving'), null, 'saving');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
-      push().then(function () { flag(t('saved'), 'ok'); })
+      push().then(function () { flag(t('saved'), 'ok', 'saved'); })
         .catch(function (e) { flag(t('saveErr') + e.message, 'err'); });
     }, 500);
   }
@@ -535,10 +549,11 @@
 
   // ─── блоки ─────────────────────────────────────────────────────────
   function renderOverview() {
-    var title = (S.settings.title || '').trim();
+    var title = sv('title');
+    var subtitle = sv('subtitle');
     $('ovTitle').textContent = title || t('nav.overview');
-    $('ovSub').textContent = (S.settings.subtitle || '').trim();
-    $('ovSub').style.display = S.settings.subtitle ? '' : 'none';
+    $('ovSub').textContent = subtitle;
+    $('ovSub').style.display = subtitle ? '' : 'none';
     $('brandT').textContent = title || 'Dark Fusion';
     $('crumb').textContent = title || t('dashboard');
     document.title = title ? title + ' · Dark Fusion' : 'Dark Fusion Dashboard';
@@ -1048,7 +1063,7 @@
     a.download = 'dashboard-' + today() + '.json';
     a.click();
     URL.revokeObjectURL(a.href);
-    flag(t('exported'), 'ok');
+    flag(t('exported'), 'ok', 'exported');
   }
 
   function importData(file) {
@@ -1058,11 +1073,11 @@
       try {
         parsed = JSON.parse(fr.result);
       } catch (e) {
-        return flag(t('importBad'), 'err');
+        return flag(t('importBad'), 'err', 'importBad');
       }
       // Та же проверка формы, что на сервере: кривой файл не должен затирать рабочие данные.
       if (!parsed || typeof parsed !== 'object' || !parsed.settings || !Array.isArray(parsed.deals)) {
-        return flag(t('importBad'), 'err');
+        return flag(t('importBad'), 'err', 'importBad');
       }
       S = migrate(parsed);
       Array.prototype.forEach.call(document.querySelectorAll('[data-s]'), function (el) {
@@ -1094,6 +1109,9 @@
     $('themeL').textContent = theme() === 'dark' ? t('themeLight') : t('themeDark');
     var on = document.querySelector('.nav-i.on');
     if (on) $('barT').textContent = t('nav.' + on.dataset.v);
+    // Статус внизу сайдбара переводим заново — иначе он остаётся на языке,
+    // который был в момент загрузки, и в английском режиме висит «загружено».
+    if (lastFlag) flag(t(lastFlag.key), lastFlag.kind, lastFlag.key);
     if (S) render();
   }
 
@@ -1231,7 +1249,7 @@
     });
 
     applyLang(saved);
-    flag(t('loaded'));
+    flag(t('loaded'), null, 'loaded');
   }
 
   load();
