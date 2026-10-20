@@ -285,6 +285,8 @@ tr:hover .del,.card:hover .del,.entry:hover .del{opacity:1}
 .pf label{font-size:13px;color:var(--muted);width:160px;flex-shrink:0}
 .pf input,.pf select{flex:1;min-width:0}
 .pf .hint{font-size:12px;color:var(--dim);flex-basis:100%;padding-left:176px;margin-top:-4px}
+/* Незаданный курс — не стилистика подписи, а дыра в итогах: цвет берём боевой. */
+.pf .hint.warn{color:var(--terra)}
 
 /* ── заставка ──
    Фон непрозрачный и свой, а не var(--bg): заставка должна закрыть экран ещё

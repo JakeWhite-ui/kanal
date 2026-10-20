@@ -52,6 +52,23 @@
   var n = function (v) { return Math.round(Number(v) || 0).toLocaleString(L === 'ru' ? 'ru-RU' : 'en-US'); };
   var cur = function () { return (S.settings.currency || '').trim(); };
   var money = function (v) { var c = cur(); return n(v) + (c ? ' ' + c : ''); };
+  // ─── вторая валюта ─────────────────────────────────────────────────
+  // Рубль не «ещё одна подпись», а второй рынок: сделка по России живёт в ₽
+  // своей суммой, а цель, воронка и отчёты считаются в базовой валюте по курсу
+  // из настроек. Курс не задан — рублёвые суммы в итоги не идут вовсе:
+  // выдуманный курс в этих цифрах опаснее нуля, по ним он продаёт.
+  var RUB = 'RUB';
+  var RUB_SIGN = '₽';
+  var rubRate = function () { return Number(S.settings.rub_rate) || 0; };
+  var toBase = function (v, c) {
+    var x = Number(v) || 0;
+    if (c !== RUB) return x;
+    var r = rubRate();
+    return r > 0 ? x / r : 0;
+  };
+  // Сумма в валюте самой сделки. Знак ставим только рублёвым: базовых строк
+  // большинство, и повтор «AED» в каждой ячейке только зашумляет таблицу.
+  var mk = function (v, c) { return c === RUB ? n(v) + ' ' + RUB_SIGN : n(v); };
   // Дата по локальному календарю, а не по UTC: иначе в Дубае «сегодня» наступает на 4 часа позже.
   var isoD = function (d) { return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
   var today = function () { return isoD(new Date()); };
@@ -77,6 +94,9 @@
     if (d.paid != null) return Number(d.paid) || 0;
     return d.status === 'paid' ? Number(d.amount) || 0 : 0;
   };
+  // Суммы в базовой валюте — всё, что складывается между сделками, идёт через них.
+  var amtB = function (d) { return toBase(d.amount, d.cur); };
+  var gotB = function (d) { return toBase(got(d), d.cur); };
   // Сколько перенос подставляет в «получено» на этом этапе. Вынесено в одно место:
   // подстановка и её откат обязаны считать одинаково, иначе откат не сработает.
   var autoPaid = function (d, stage) {
@@ -117,7 +137,7 @@
     var m = { paid: 0, open: 0, active: 0, closed: 0, won: 0, conv: 0, win: 0, cycle: null };
     var cycles = [];
     S.deals.forEach(function (d) {
-      var a = Number(d.amount) || 0, p = got(d);
+      var a = amtB(d), p = gotB(d);
       m.paid += p;
       m.open += Math.max(0, a - p);
       if (d.status !== 'paid') m.active++;
@@ -145,7 +165,7 @@
     }
     S.deals.forEach(function (d) {
       var c = slot(d.client || '—');
-      var a = Number(d.amount) || 0, p = got(d);
+      var a = amtB(d), p = gotB(d);
       c.got += p; c.open += Math.max(0, a - p); c.deals++;
       var la = lastAct(d);
       if (la > c.last) c.last = la;
@@ -254,6 +274,9 @@
       // Когда сделка попала в текущий этап. У старых записей этого нет — берём дату сделки,
       // иначе «дней в этапе» и средний цикл посчитались бы от нуля.
       if (!x.stage_date) x.stage_date = x.date || today();
+      // Валюта сделки. Пусто — базовая: все записи до появления рубля сделаны в ней,
+      // и переписывать их нельзя, иначе дубайские суммы уедут по курсу.
+      if (x.cur !== RUB) x.cur = '';
     });
     // Имя для приветствия: берём первое слово из «кто я», но дальше оно живёт
     // отдельным полем настроек и правится руками.
@@ -379,7 +402,7 @@
     var months = {};
     paid.forEach(function (d) {
       var k = String(d.date).slice(0, 7);
-      months[k] = (months[k] || 0) + got(d);
+      months[k] = (months[k] || 0) + gotB(d);
     });
     var keys = Object.keys(months).sort();
     var o = base(P);
@@ -505,7 +528,7 @@
     keys.forEach(function (k) { sums[k] = 0; });
     withMoney.forEach(function (d) {
       var k = monday(d.date);
-      if (sums[k] !== undefined) sums[k] += got(d);
+      if (sums[k] !== undefined) sums[k] += gotB(d);
     });
     var o = base(P);
     o.plugins.tooltip.callbacks = { label: function (c) { return money(c.parsed.y); } };
@@ -573,6 +596,29 @@
   }
 
   // ─── блоки ─────────────────────────────────────────────────────────
+  // Курс в читаемом виде: дробная часть переживает смену языка, 22,4 не 22.
+  function rateTxt() {
+    return String(rubRate()).replace('.', L === 'ru' ? ',' : '.');
+  }
+  // Сколько в цели рублёвых денег. Пока не видно этой строки, 100 000 выглядят
+  // целиком дубайскими — а это уже другая цифра для разговора с клиентом.
+  function rubNote() {
+    var raw = S.deals.reduce(function (a, d) { return d.cur === RUB ? a + got(d) : a; }, 0);
+    if (!raw) return '';
+    if (!rubRate()) return t('m.rubNoRate');
+    return t('m.inclRub') + ' ' + n(raw) + ' ' + RUB_SIGN + ' (1 ' + (cur() || '?') + ' = ' + rateTxt() + ' ' + RUB_SIGN + ')';
+  }
+  // Подпись под полем курса. Рублёвые сделки без курса считаются нулём,
+  // поэтому про них нужно сказать прямо, а не прятать в тихой серой строке.
+  function renderRateHint() {
+    var el = $('rateHint');
+    if (!el) return;
+    var cnt = S.deals.filter(function (d) { return d.cur === RUB; }).length;
+    var bad = cnt > 0 && !rubRate();
+    el.classList.toggle('warn', bad);
+    el.textContent = bad ? t('set.rubWarn') + ' ' + cnt + ' ' + plural(cnt) : t('set.rubHint');
+  }
+
   function renderOverview() {
     var title = sv('title');
     var subtitle = sv('subtitle');
@@ -617,8 +663,9 @@
         + '<div class="ring-wrap">' + ring(pct, 104, 9)
         + '<span class="ring-t">' + pctTxt + ' %</span></div></div>'
         + '<div class="track"><i style="width:' + Math.min(100, pct) + '%"></i></div>'
-        + '<div class="hero-n">' + esc(dl) + '</div></div>';
+        + '<div class="hero-n">' + esc([dl, rubNote()].filter(Boolean).join(' · ')) + '</div></div>';
     }
+    renderRateHint();
 
     $('cDeals').textContent = S.deals.length || '';
     $('cPipe').textContent = m.active || '';
@@ -633,13 +680,13 @@
     var box = $('assist');
     var risky = S.deals.filter(atRisk).sort(function (a, b) { return idleDays(b) - idleDays(a); });
     if (!risky.length) { box.innerHTML = '<div class="empty">' + esc(t('as.none')) + '</div>'; return; }
-    var sum = risky.reduce(function (a, d) { return a + Math.max(0, (Number(d.amount) || 0) - got(d)); }, 0);
+    var sum = risky.reduce(function (a, d) { return a + Math.max(0, amtB(d) - gotB(d)); }, 0);
     box.innerHTML = '<div class="as-head">' + esc(t('as.sub')) + ' · <b>' + esc(money(sum)) + '</b> ' + esc(t('as.risk')) + '</div>'
       + risky.map(function (d) {
         var a = Number(d.amount) || 0, p = got(d);
         return '<div class="as-row"><div><div class="as-c">' + esc(d.client) + '</div>'
           + '<div class="as-m">' + esc(t('st.' + d.status)) + (d.service ? ' · ' + esc(d.service) : '') + '</div></div>'
-          + '<div class="as-a"><div class="as-sum">' + esc(money(Math.max(0, a - p))) + '</div>'
+          + '<div class="as-a"><div class="as-sum">' + esc(mk(Math.max(0, a - p), d.cur)) + '</div>'
           + '<div class="as-d">' + idleDays(d) + ' ' + esc(t('as.days')) + '</div></div></div>';
       }).join('');
   }
@@ -665,7 +712,7 @@
     box.innerHTML = rows.map(function (d) {
       var a = Number(d.amount) || 0, p = got(d);
       // Частичную оплату показываем дробью: видно и что пришло, и сколько висит.
-      var sum = a ? (p > 0 && p < a ? n(p) + ' / ' + n(a) : n(a)) : (p ? n(p) : '—');
+      var sum = a ? (p > 0 && p < a ? n(p) + ' / ' + mk(a, d.cur) : mk(a, d.cur)) : (p ? mk(p, d.cur) : '—');
       return '<tr><td>' + (d.url ? '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.client) + '</a>' : esc(d.client)) + '</td>'
         + '<td>' + esc(d.service || '') + '</td>'
         + '<td><span class="tag ' + ST_CLS[d.status] + '">' + t('st.' + d.status) + '</span></td>'
@@ -682,13 +729,13 @@
   function renderBoard() {
     $('board').innerHTML = STATUSES.map(function (st) {
       var ds = S.deals.filter(function (d) { return d.status === st; })
-        .sort(function (a, b) { return (Number(b.amount) || 0) - (Number(a.amount) || 0); });
+        .sort(function (a, b) { return amtB(b) - amtB(a); });
       // Итог колонки — стоимость сделок на этапе, а не полученное:
       // так видно, сколько денег стоит на каждой ступени.
-      var sum = ds.reduce(function (a, d) { return a + (Number(d.amount) || 0); }, 0);
+      var sum = ds.reduce(function (a, d) { return a + amtB(d); }, 0);
       var cards = ds.length ? ds.map(function (d) {
         var a = Number(d.amount) || 0, p = got(d);
-        var val = a ? (p > 0 && p < a ? n(p) + ' <span class="part">/ ' + n(a) + '</span>' : n(a)) : (p ? n(p) : '—');
+        var val = a ? (p > 0 && p < a ? n(p) + ' <span class="part">/ ' + mk(a, d.cur) + '</span>' : mk(a, d.cur)) : (p ? mk(p, d.cur) : '—');
         var inStage = d.stage_date ? Math.max(0, daysBetween(d.stage_date, today())) : null;
         var idle = idleDays(d);
         return '<div class="dcard' + (atRisk(d) ? ' risk' : '') + (justMoved === d.id ? ' just-moved' : '')
@@ -864,9 +911,9 @@
     var weekAgo = isoD(new Date(new Date(today()).getTime() - 7 * 864e5));
     countUp($('rThru'), S.moves.filter(function (mv) { return mv.date >= weekAgo; }).length);
 
-    var withAmount = S.deals.filter(function (d) { return (Number(d.amount) || 0) > 0; });
+    var withAmount = S.deals.filter(function (d) { return amtB(d) > 0; });
     var ticket = withAmount.length
-      ? Math.round(withAmount.reduce(function (a, d) { return a + Number(d.amount); }, 0) / withAmount.length) : 0;
+      ? Math.round(withAmount.reduce(function (a, d) { return a + amtB(d); }, 0) / withAmount.length) : 0;
     countUp($('rTicket'), ticket);
     $('rTicketS').textContent = withAmount.length ? t('rep.ticketS') : t('rep.noData');
 
@@ -993,7 +1040,7 @@
       + '</div>'
       + (deals.length ? '<table><tbody>' + deals.map(function (d) {
         var a = Number(d.amount) || 0, p = got(d);
-        var val = a ? (p > 0 && p < a ? n(p) + ' / ' + n(a) : n(a)) : (p ? n(p) : '—');
+        var val = a ? (p > 0 && p < a ? n(p) + ' / ' + mk(a, d.cur) : mk(a, d.cur)) : (p ? mk(p, d.cur) : '—');
         return '<tr><td>' + esc(d.service || t('th.amount')) + '</td>'
           + '<td><span class="tag ' + ST_CLS[d.status] + '">' + esc(t('st.' + d.status)) + '</span></td>'
           + '<td class="tnum" style="font-size:12px">' + esc(dmy(d.date)) + '</td>'
@@ -1071,6 +1118,12 @@
       el.innerHTML = opts(i === 2 ? rubs : plats);
       if (prev) el.value = prev;
     });
+    // Базовая валюта берётся из настроек, поэтому список пересобирается вместе с ними.
+    var dc = $('dealCur'), prevC = dc.value;
+    dc.innerHTML = '<option value="">' + esc(cur() || t('set.currency')) + '</option>'
+      + '<option value="' + RUB + '">' + RUB_SIGN + '</option>';
+    if (prevC) dc.value = prevC;
+
     var ds = $('dealStatus'), prevS = ds.value;
     ds.innerHTML = STATUSES.map(function (s) {
       return '<option value="' + s + '"' + (s === 'paid' ? ' selected' : '') + '>' + t('st.' + s) + '</option>';
@@ -1145,6 +1198,11 @@
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-ph]'), function (el) {
       el.placeholder = t(el.dataset.ph);
+    });
+    // Селектам placeholder не положен, а подпись нужна: у валюты сделки нет
+    // видимого заголовка, и скринридер иначе читает её как безымянный список.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-aria]'), function (el) {
+      el.setAttribute('aria-label', t(el.dataset.aria));
     });
     Array.prototype.forEach.call(document.querySelectorAll('.lang button'), function (b) {
       b.classList.toggle('on', b.dataset.lang === L);
@@ -1257,7 +1315,7 @@
       // Поле «получено» пустое — значит смотрим на статус: оплачено целиком или ничего.
       var paid = raw === '' ? (f.get('status') === 'paid' ? amount : 0) : Number(raw) || 0;
       S.deals.push({
-        id: uid(), client: f.get('client'), amount: amount, paid: paid,
+        id: uid(), client: f.get('client'), amount: amount, paid: paid, cur: f.get('cur') === RUB ? RUB : '',
         status: f.get('status'), date: f.get('date'), service: f.get('service'), url: f.get('url'),
       });
     });

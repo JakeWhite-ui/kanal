@@ -28,6 +28,8 @@ window.I18N = {
     'm.of': 'из',
     'm.due': 'Срок —',
     'm.overdue': 'Срок прошёл',
+    'm.inclRub': 'в том числе',
+    'm.rubNoRate': 'Рублёвые сделки не в счёте: курс не задан',
     deal1: 'сделка', deal2: 'сделки', deal5: 'сделок',
 
     'ch.money': 'Поступления по месяцам',
@@ -50,6 +52,7 @@ window.I18N = {
     'subs.h': 'Снимки подписчиков',
 
     'f.client': 'клиент', 'f.amount': 'вся сумма', 'f.paid': 'получено', 'f.service': 'услуга', 'f.link': 'https://ссылка',
+    'f.cur': 'валюта сделки',
     'f.title': 'заголовок', 'f.views': 'просм.', 'f.replies': 'откл.', 'f.subs': 'подписчиков',
     'f.minutes': 'минут в работе', 'f.done': 'Сделано — по одному пункту на строку', 'f.fail': 'Провал дня',
     'f.add': 'Добавить', 'f.record': 'Записать', 'f.logDay': 'Записать день',
@@ -73,6 +76,9 @@ window.I18N = {
     'set.enHint': 'Подставляются вместо русских, когда интерфейс переключён на английский. Пусто — останется русский вариант.',
     'set.subtitle': 'Подзаголовок', 'set.subtitlePh': 'одной строкой, необязательно',
     'set.currency': 'Валюта', 'set.currencyPh': 'AED, $, ₽ — как писать рядом с суммами',
+    'set.rubRate': 'Курс рубля', 'set.rubRatePh': 'сколько ₽ в одной единице базовой валюты',
+    'set.rubHint': 'Сделки в ₽ пересчитываются в базовую валюту по этому курсу — в цели, воронке и отчётах. В своих строках они остаются в рублях.',
+    'set.rubWarn': 'Курс не задан — в итоги не попадают сделки в ₽:',
     'set.goal': 'Цель', 'set.goalAmount': 'Сумма цели', 'set.goalPh': 'оставь пустым, если цели нет',
     'set.deadline': 'Срок', 'set.goalHint': 'Пока сумма не заполнена, блок прогресса не показывается.',
     'set.platforms': 'Площадки', 'set.commaSep': 'Через запятую',
@@ -173,6 +179,8 @@ window.I18N = {
     'm.of': 'of',
     'm.due': 'Due',
     'm.overdue': 'Past due',
+    'm.inclRub': 'including',
+    'm.rubNoRate': 'Ruble deals excluded: no rate set',
     deal1: 'deal', deal2: 'deals', deal5: 'deals',
 
     'ch.money': 'Income by month',
@@ -193,6 +201,7 @@ window.I18N = {
     'subs.h': 'Follower snapshots',
 
     'f.client': 'client', 'f.amount': 'total', 'f.paid': 'received', 'f.service': 'service', 'f.link': 'https://link',
+    'f.cur': 'deal currency',
     'f.title': 'title', 'f.views': 'views', 'f.replies': 'replies', 'f.subs': 'followers',
     'f.minutes': 'minutes worked', 'f.done': 'Done — one item per line', 'f.fail': 'Failure of the day',
     'f.add': 'Add', 'f.record': 'Record', 'f.logDay': 'Log the day',
@@ -216,6 +225,9 @@ window.I18N = {
     'set.enHint': 'Used instead of the Russian ones while the interface is in English. Leave empty to keep the Russian version.',
     'set.subtitle': 'Subtitle', 'set.subtitlePh': 'one line, optional',
     'set.currency': 'Currency', 'set.currencyPh': 'AED, $, € — shown next to amounts',
+    'set.rubRate': 'Ruble rate', 'set.rubRatePh': 'rubles per one unit of the base currency',
+    'set.rubHint': 'Deals in ₽ are converted to the base currency at this rate — in the goal, pipeline and reports. Their own rows stay in rubles.',
+    'set.rubWarn': 'No rate set — these ₽ deals are left out of totals:',
     'set.goal': 'Goal', 'set.goalAmount': 'Target amount', 'set.goalPh': 'leave empty if there is no goal',
     'set.deadline': 'Deadline', 'set.goalHint': 'Until the amount is filled in, the progress block stays hidden.',
     'set.platforms': 'Platforms', 'set.commaSep': 'Comma separated',
