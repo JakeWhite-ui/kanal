@@ -51,24 +51,52 @@
 
   var n = function (v) { return Math.round(Number(v) || 0).toLocaleString(L === 'ru' ? 'ru-RU' : 'en-US'); };
   var cur = function () { return (S.settings.currency || '').trim(); };
-  var money = function (v) { var c = cur(); return n(v) + (c ? ' ' + c : ''); };
-  // ─── вторая валюта ─────────────────────────────────────────────────
-  // Рубль не «ещё одна подпись», а второй рынок: сделка по России живёт в ₽
-  // своей суммой, а цель, воронка и отчёты считаются в базовой валюте по курсу
-  // из настроек. Курс не задан — рублёвые суммы в итоги не идут вовсе:
-  // выдуманный курс в этих цифрах опаснее нуля, по ним он продаёт.
+  // ─── валюты ────────────────────────────────────────────────────────
+  // Валюта не подпись рядом с числом, а рынок. Сделка живёт в той валюте,
+  // в которой пришли деньги; складывается всё в базовой из настроек; смотреть
+  // итоги можно в любой — переключателем в сайдбаре. Курс не задан — суммы
+  // этой валюты в итоги не идут вовсе: выдуманный курс в цифрах, по которым
+  // он продаёт, опаснее нуля.
+  var BASE = '';
   var RUB = 'RUB';
-  var RUB_SIGN = '₽';
-  var rubRate = function () { return Number(S.settings.rub_rate) || 0; };
+  var USD = 'USD';
+  // Курс везде в одну сторону: сколько единиц валюты в ОДНОЙ базовой.
+  // Две стороны в одном экране путают: 22,4 ₽ и 3,67 AED выглядят однородно,
+  // но считаются наоборот, и ошибка всплывёт только в сумме сделки.
+  var CURS = [
+    { code: RUB, sign: '₽', key: 'rub_rate' },
+    { code: USD, sign: '$', key: 'usd_rate' },
+  ];
+  var curDef = function (c) {
+    return CURS.filter(function (x) { return x.code === c; })[0] || null;
+  };
+  var sign = function (c) { var d = curDef(c); return d ? d.sign : cur(); };
+  var rateOf = function (c) {
+    var d = curDef(c);
+    return d ? Number(S.settings[d.key]) || 0 : 1;
+  };
   var toBase = function (v, c) {
     var x = Number(v) || 0;
-    if (c !== RUB) return x;
-    var r = rubRate();
+    if (!curDef(c)) return x;
+    var r = rateOf(c);
     return r > 0 ? x / r : 0;
   };
-  // Сумма в валюте самой сделки. Знак ставим только рублёвым: базовых строк
+  // Сумма в валюте самой сделки. У базовой знак не ставим: таких строк
   // большинство, и повтор «AED» в каждой ячейке только зашумляет таблицу.
-  var mk = function (v, c) { return c === RUB ? n(v) + ' ' + RUB_SIGN : n(v); };
+  var mk = function (v, c) { return curDef(c) ? n(v) + ' ' + sign(c) : n(v); };
+
+  // В какой валюте смотрим итоги. Живёт в браузере, а не в data.json:
+  // это взгляд на цифры, а не сами цифры, и на двух Mac может быть разным.
+  var CUR_KEY = 'curView';
+  var VC = BASE;
+  var viewCur = function () { return rateOf(VC) > 0 ? VC : BASE; };
+  var toView = function (vBase) { return (Number(vBase) || 0) * rateOf(viewCur()); };
+  // Форматирование уже пересчитанного числа — чтобы графики не конвертировали дважды.
+  var moneyV = function (vView) {
+    var c = viewCur(), s = c ? sign(c) : cur();
+    return n(vView) + (s ? ' ' + s : '');
+  };
+  var money = function (vBase) { return moneyV(toView(vBase)); };
   // Дата по локальному календарю, а не по UTC: иначе в Дубае «сегодня» наступает на 4 часа позже.
   var isoD = function (d) { return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
   var today = function () { return isoD(new Date()); };
@@ -276,8 +304,14 @@
       if (!x.stage_date) x.stage_date = x.date || today();
       // Валюта сделки. Пусто — базовая: все записи до появления рубля сделаны в ней,
       // и переписывать их нельзя, иначе дубайские суммы уедут по курсу.
-      if (x.cur !== RUB) x.cur = '';
+      if (!curDef(x.cur)) x.cur = '';
     });
+    // Доллар к дирхаму — не рыночный курс, а привязка CBUAE: 1 USD = 3,6725 AED,
+    // отсюда 1/3,6725 = 0,272294. Поэтому его можно проставить за него, в отличие
+    // от рубля. Только когда поля нет вовсе: стёртое руками остаётся стёртым.
+    if (d.settings.usd_rate === undefined && String(d.settings.currency || '').toUpperCase() === 'AED') {
+      d.settings.usd_rate = 0.272294;
+    }
     // Имя для приветствия: берём первое слово из «кто я», но дальше оно живёт
     // отдельным полем настроек и правится руками.
     if (d.settings.name === undefined) {
@@ -402,11 +436,12 @@
     var months = {};
     paid.forEach(function (d) {
       var k = String(d.date).slice(0, 7);
-      months[k] = (months[k] || 0) + gotB(d);
+      months[k] = (months[k] || 0) + toView(gotB(d));
     });
     var keys = Object.keys(months).sort();
     var o = base(P);
-    o.plugins.tooltip.callbacks = { label: function (c) { return money(c.parsed.y); } };
+    // moneyV, а не money: в столбцах уже валюта просмотра, второй пересчёт её удвоит.
+    o.plugins.tooltip.callbacks = { label: function (c) { return moneyV(c.parsed.y); } };
     o.scales = {
       x: { grid: { display: false }, border: { display: false }, ticks: tickCfg(P) },
       y: {
@@ -528,10 +563,10 @@
     keys.forEach(function (k) { sums[k] = 0; });
     withMoney.forEach(function (d) {
       var k = monday(d.date);
-      if (sums[k] !== undefined) sums[k] += gotB(d);
+      if (sums[k] !== undefined) sums[k] += toView(gotB(d));
     });
     var o = base(P);
-    o.plugins.tooltip.callbacks = { label: function (c) { return money(c.parsed.y); } };
+    o.plugins.tooltip.callbacks = { label: function (c) { return moneyV(c.parsed.y); } };
     o.scales = {
       x: { grid: { display: false }, border: { display: false }, ticks: tickCfg(P) },
       y: {
@@ -596,27 +631,58 @@
   }
 
   // ─── блоки ─────────────────────────────────────────────────────────
-  // Курс в читаемом виде: дробная часть переживает смену языка, 22,4 не 22.
-  function rateTxt() {
-    return String(rubRate()).replace('.', L === 'ru' ? ',' : '.');
+  // Число с дробной частью в виде, который переживает смену языка: 22,4 не 22.
+  var dec = function (v) {
+    var x = Number(v) || 0;
+    var s = x >= 100 ? String(Math.round(x * 100) / 100) : x.toPrecision(5).replace(/0+$/, '').replace(/\.$/, '');
+    return L === 'ru' ? s.replace('.', ',') : s;
+  };
+  // Что в цели лежит не в базовой валюте. Пока этой строки не видно, 100 000
+  // выглядят целиком дубайскими — а это уже другая цифра для разговора.
+  function curNote() {
+    var has = [], miss = [];
+    CURS.forEach(function (x) {
+      var raw = S.deals.reduce(function (a, d) { return d.cur === x.code ? a + got(d) : a; }, 0);
+      if (!raw) return;
+      if (rateOf(x.code)) has.push(n(raw) + ' ' + x.sign);
+      else miss.push(x.sign);
+    });
+    var out = [];
+    if (has.length) out.push(t('m.incl') + ' ' + has.join(' + '));
+    if (miss.length) out.push(t('m.noRate') + ' ' + miss.join(', '));
+    return out.join(' · ');
   }
-  // Сколько в цели рублёвых денег. Пока не видно этой строки, 100 000 выглядят
-  // целиком дубайскими — а это уже другая цифра для разговора с клиентом.
-  function rubNote() {
-    var raw = S.deals.reduce(function (a, d) { return d.cur === RUB ? a + got(d) : a; }, 0);
-    if (!raw) return '';
-    if (!rubRate()) return t('m.rubNoRate');
-    return t('m.inclRub') + ' ' + n(raw) + ' ' + RUB_SIGN + ' (1 ' + (cur() || '?') + ' = ' + rateTxt() + ' ' + RUB_SIGN + ')';
+  // Подписи под полями курса. Сделки без курса считаются нулём, поэтому про них
+  // надо сказать прямо, а не прятать в тихой серой строке. Обратный курс показан
+  // рядом: «22,4 ₽ за дирхам» и «0,045 дирхама за рубль» — это одно и то же,
+  // и видеть обе стороны дешевле, чем делить в уме перед разговором о деньгах.
+  function renderRateHints() {
+    CURS.forEach(function (x) {
+      var el = $('hint-' + x.key);
+      if (!el) return;
+      var cnt = S.deals.filter(function (d) { return d.cur === x.code; }).length;
+      var r = rateOf(x.code);
+      var bad = cnt > 0 && !r;
+      el.classList.toggle('warn', bad);
+      if (bad) { el.textContent = t('set.rateWarn') + ' ' + cnt + ' ' + plural(cnt); return; }
+      var b = cur() || '?';
+      el.textContent = r
+        ? '1 ' + b + ' = ' + dec(r) + ' ' + x.sign + '  ·  1 ' + x.sign + ' = ' + dec(1 / r) + ' ' + b
+        : t('set.rateEmpty');
+    });
   }
-  // Подпись под полем курса. Рублёвые сделки без курса считаются нулём,
-  // поэтому про них нужно сказать прямо, а не прятать в тихой серой строке.
-  function renderRateHint() {
-    var el = $('rateHint');
-    if (!el) return;
-    var cnt = S.deals.filter(function (d) { return d.cur === RUB; }).length;
-    var bad = cnt > 0 && !rubRate();
-    el.classList.toggle('warn', bad);
-    el.textContent = bad ? t('set.rubWarn') + ' ' + cnt + ' ' + plural(cnt) : t('set.rubHint');
+
+  // Переключатель валюты просмотра. Валюта без курса в него не попадает:
+  // кнопка, которая показала бы нули, хуже отсутствующей кнопки.
+  function renderCurSw() {
+    var box = $('curSw');
+    if (!box) return;
+    var opts = [{ code: BASE, sign: cur() }].concat(CURS.filter(function (x) { return rateOf(x.code) > 0; }));
+    box.style.display = opts.length > 1 && cur() ? '' : 'none';
+    box.innerHTML = opts.map(function (o) {
+      return '<button data-cur="' + esc(o.code) + '"' + (o.code === viewCur() ? ' class="on"' : '') + '>'
+        + esc(o.sign) + '</button>';
+    }).join('');
   }
 
   function renderOverview() {
@@ -636,10 +702,12 @@
     var m = metrics();
     var goal = Number(S.settings.goal) || 0;
 
-    countUp($('mPaid'), m.paid);
+    // Плитки идут через toView: процент и доли считаются в базовой, но число
+    // на экране обязано быть в той же валюте, что подпись под ним.
+    countUp($('mPaid'), toView(m.paid));
     $('mPaidS').textContent = m.closed ? m.closed + ' ' + plural(m.closed) : t('m.nothing');
     $('mPaidBar').style.width = goal ? Math.min(100, (m.paid / goal) * 100) + '%' : '0%';
-    countUp($('mPipe'), m.open);
+    countUp($('mPipe'), toView(m.open));
     countUp($('mActive'), m.active);
     countUp($('mConv'), m.conv, pctFmt);
 
@@ -663,9 +731,10 @@
         + '<div class="ring-wrap">' + ring(pct, 104, 9)
         + '<span class="ring-t">' + pctTxt + ' %</span></div></div>'
         + '<div class="track"><i style="width:' + Math.min(100, pct) + '%"></i></div>'
-        + '<div class="hero-n">' + esc([dl, rubNote()].filter(Boolean).join(' · ')) + '</div></div>';
+        + '<div class="hero-n">' + esc([dl, curNote()].filter(Boolean).join(' · ')) + '</div></div>';
     }
-    renderRateHint();
+    renderRateHints();
+    renderCurSw();
 
     $('cDeals').textContent = S.deals.length || '';
     $('cPipe').textContent = m.active || '';
@@ -914,7 +983,7 @@
     var withAmount = S.deals.filter(function (d) { return amtB(d) > 0; });
     var ticket = withAmount.length
       ? Math.round(withAmount.reduce(function (a, d) { return a + amtB(d); }, 0) / withAmount.length) : 0;
-    countUp($('rTicket'), ticket);
+    countUp($('rTicket'), toView(ticket));
     $('rTicketS').textContent = withAmount.length ? t('rep.ticketS') : t('rep.noData');
 
     var dl = S.settings.deadline;
@@ -1012,7 +1081,7 @@
       return '<button class="cl-i' + (c.name === selClient ? ' on' : '') + '" data-cl="' + esc(c.name) + '">'
         + '<span class="dot h-' + health(c).k + '"></span>'
         + '<span class="cl-i-n">' + esc(c.name) + '</span>'
-        + '<span class="cl-i-s">' + n(c.got) + '</span></button>';
+        + '<span class="cl-i-s">' + n(toView(c.got)) + '</span></button>';
     }).join('');
     renderClientBody();
   }
@@ -1121,7 +1190,7 @@
     // Базовая валюта берётся из настроек, поэтому список пересобирается вместе с ними.
     var dc = $('dealCur'), prevC = dc.value;
     dc.innerHTML = '<option value="">' + esc(cur() || t('set.currency')) + '</option>'
-      + '<option value="' + RUB + '">' + RUB_SIGN + '</option>';
+      + CURS.map(function (x) { return '<option value="' + x.code + '">' + x.sign + '</option>'; }).join('');
     if (prevC) dc.value = prevC;
 
     var ds = $('dealStatus'), prevS = ds.value;
@@ -1232,6 +1301,17 @@
     try { applyTheme(localStorage.getItem(THEME_KEY) || 'dark'); } catch (e) { applyTheme('dark'); }
     var saved = 'ru';
     try { saved = localStorage.getItem('lang') || 'ru'; } catch (e) { /* приватный режим */ }
+    // Валюта просмотра. Пишется только по клику: если проставлять дефолт при
+    // каждом старте, сменить его потом нельзя будет ни у кого, кто уже заходил.
+    try { VC = localStorage.getItem(CUR_KEY) || BASE; } catch (e) { VC = BASE; }
+
+    $('curSw').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-cur]');
+      if (!b) return;
+      VC = b.dataset.cur;
+      try { localStorage.setItem(CUR_KEY, VC); } catch (e2) { /* приватный режим — просто не запоминаем */ }
+      render();
+    });
 
     $('themeT').addEventListener('click', function () {
       applyTheme(theme() === 'dark' ? 'light' : 'dark');
@@ -1315,7 +1395,7 @@
       // Поле «получено» пустое — значит смотрим на статус: оплачено целиком или ничего.
       var paid = raw === '' ? (f.get('status') === 'paid' ? amount : 0) : Number(raw) || 0;
       S.deals.push({
-        id: uid(), client: f.get('client'), amount: amount, paid: paid, cur: f.get('cur') === RUB ? RUB : '',
+        id: uid(), client: f.get('client'), amount: amount, paid: paid, cur: curDef(f.get('cur')) ? f.get('cur') : '',
         status: f.get('status'), date: f.get('date'), service: f.get('service'), url: f.get('url'),
       });
     });
