@@ -672,17 +672,29 @@
     });
   }
 
-  // Переключатель валюты просмотра. Валюта без курса в него не попадает:
-  // кнопка, которая показала бы нули, хуже отсутствующей кнопки.
+  // Переключатель валюты просмотра. Показываем ВСЕ валюты, даже без курса:
+  // спрятанная кнопка читается как «доллар есть, а рубля нет» — так и вышло
+  // при первом показе. Бескурсовая гаснет и ведёт прямо в поле курса.
   function renderCurSw() {
     var box = $('curSw');
     if (!box) return;
-    var opts = [{ code: BASE, sign: cur() }].concat(CURS.filter(function (x) { return rateOf(x.code) > 0; }));
-    box.style.display = opts.length > 1 && cur() ? '' : 'none';
-    box.innerHTML = opts.map(function (o) {
-      return '<button data-cur="' + esc(o.code) + '"' + (o.code === viewCur() ? ' class="on"' : '') + '>'
+    box.style.display = cur() ? '' : 'none';
+    box.innerHTML = [{ code: BASE, sign: cur() }].concat(CURS).map(function (o) {
+      var off = o.code && !rateOf(o.code);
+      return '<button data-cur="' + esc(o.code) + '" title="' + esc(off ? t('set.rateEmpty') : '')
+        + '" class="' + (o.code === viewCur() ? 'on' : '') + (off ? ' no-rate' : '') + '">'
         + esc(o.sign) + '</button>';
     }).join('');
+  }
+
+  function goView(name) {
+    Array.prototype.forEach.call(document.querySelectorAll('.nav-i'), function (x) {
+      x.classList.toggle('on', x.dataset.v === name);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.view'), function (v) {
+      v.classList.toggle('on', v.id === 'v-' + name);
+    });
+    $('barT').textContent = t('nav.' + name);
   }
 
   function renderOverview() {
@@ -1308,6 +1320,15 @@
     $('curSw').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-cur]');
       if (!b) return;
+      // Курса нет — переключать не на что. Вместо немого клика везём в настройки
+      // к нужному полю: это ровно тот шаг, который остаётся сделать.
+      if (b.dataset.cur && !rateOf(b.dataset.cur)) {
+        goView('settings');
+        var inp = document.querySelector('[data-s="' + curDef(b.dataset.cur).key + '"]');
+        if (inp) { inp.scrollIntoView({ block: 'center' }); inp.focus(); }
+        flag(t('set.rateEmpty'), 'err');
+        return;
+      }
       VC = b.dataset.cur;
       try { localStorage.setItem(CUR_KEY, VC); } catch (e2) { /* приватный режим — просто не запоминаем */ }
       render();
@@ -1350,10 +1371,7 @@
 
     document.querySelector('nav').addEventListener('click', function (e) {
       var b = e.target.closest('.nav-i');
-      if (!b) return;
-      Array.prototype.forEach.call(document.querySelectorAll('.nav-i'), function (x) { x.classList.toggle('on', x === b); });
-      Array.prototype.forEach.call(document.querySelectorAll('.view'), function (v) { v.classList.toggle('on', v.id === 'v-' + b.dataset.v); });
-      $('barT').textContent = t('nav.' + b.dataset.v);
+      if (b) goView(b.dataset.v);
     });
 
     Array.prototype.forEach.call(document.querySelectorAll('input[type=date]'), function (el) { el.value = today(); });

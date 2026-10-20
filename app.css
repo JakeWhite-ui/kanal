@@ -124,6 +124,8 @@ body{
 }
 .lang button:hover{color:var(--ink);border-color:var(--line-2);filter:none}
 .lang button.on{background:var(--active);color:var(--ink);border-color:transparent}
+/* Валюта без курса: видна, но гаснет — клик по ней ведёт в поле курса. */
+.lang button.no-rate{opacity:.4;border-style:dashed}
 nav{display:flex;flex-direction:column;gap:1px}
 .nav-i{
   display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:var(--r);
